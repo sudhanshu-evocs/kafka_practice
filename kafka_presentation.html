@@ -1,0 +1,2658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Apache Kafka: Basic to Advanced Architecture</title>
+  
+  <!-- Modern Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    /* ==========================================================================
+       Design System & Variables
+       ========================================================================== */
+    :root {
+      --bg-dark: #070b13;
+      --bg-dark-gray: #0c111c;
+      --bg-card: rgba(18, 26, 43, 0.7);
+      --bg-code: #0b0f19;
+      --border-color: rgba(255, 255, 255, 0.08);
+      --text-main: #f0f4f9;
+      --text-muted: #8b9bb4;
+      
+      /* Gradients & Accents */
+      --primary-gradient: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+      --accent-cyan: #00f2fe;
+      --accent-blue: #4facfe;
+      --accent-purple: #ab47bc;
+      --accent-green: #34c759;
+      --accent-orange: #ff9f0a;
+      --accent-red: #ff3b30;
+      
+      --font-display: 'Outfit', 'Inter', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      --font-code: 'Fira Code', monospace;
+      
+      --slide-width: 1280px;
+      --slide-height: 720px;
+      --transition-speed: 0.5s;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-body);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* ==========================================================================
+       Slide Deck Layout
+       ========================================================================== */
+    .deck-container {
+      width: var(--slide-width);
+      height: var(--slide-height);
+      position: relative;
+      background-color: var(--bg-dark-gray);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Navigation / Progress Indicator */
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 18px 40px;
+      border-bottom: 1px solid var(--border-color);
+      background-color: rgba(7, 11, 19, 0.4);
+      z-index: 10;
+    }
+
+    .top-logo {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 1.3rem;
+      letter-spacing: 1px;
+      background: var(--primary-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .top-logo i {
+      background: var(--primary-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .top-nav-title {
+      font-family: var(--font-display);
+      font-weight: 500;
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .progress-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.05);
+      z-index: 11;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--primary-gradient);
+      transition: width 0.3s ease;
+      box-shadow: 0 0 10px rgba(0, 242, 254, 0.5);
+    }
+
+    /* Slide Content Window */
+    .slides-window {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .slide {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      padding: 40px 60px;
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateX(100px);
+      transition: transform var(--transition-speed) cubic-bezier(0.25, 1, 0.5, 1),
+                  opacity var(--transition-speed) ease,
+                  visibility var(--transition-speed) ease;
+    }
+
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(0);
+    }
+
+    .slide.prev {
+      transform: translateX(-100px);
+    }
+
+    /* Slide Typography & Content */
+    .slide-header {
+      margin-bottom: 25px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .slide-category {
+      font-family: var(--font-display);
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(0, 242, 254, 0.2);
+    }
+
+    .slide-title {
+      font-family: var(--font-display);
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: -0.5px;
+    }
+
+    .slide-body {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 30px;
+      overflow: hidden;
+    }
+
+    .grid-2col {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .content-left, .content-right {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    /* Text & Bullet Formatting */
+    .slide p {
+      font-size: 1.1rem;
+      line-height: 1.6;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+    }
+
+    .slide-highlight {
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    ul.bullet-list {
+      list-style: none;
+    }
+
+    ul.bullet-list li {
+      position: relative;
+      padding-left: 30px;
+      margin-bottom: 16px;
+      font-size: 1.05rem;
+      line-height: 1.5;
+      color: var(--text-muted);
+    }
+
+    ul.bullet-list li strong {
+      color: var(--text-main);
+    }
+
+    ul.bullet-list li::before {
+      content: "\f054";
+      font-family: "Font Awesome 6 Free";
+      font-weight: 900;
+      position: absolute;
+      left: 0;
+      top: 3px;
+      font-size: 0.85rem;
+      background: var(--primary-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* Cards & Containers */
+    .glass-card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+      transition: border-color 0.3s ease;
+    }
+
+    .glass-card:hover {
+      border-color: rgba(79, 172, 254, 0.4);
+    }
+
+    .card-title {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 1.2rem;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text-main);
+    }
+
+    .card-title i {
+      color: var(--accent-cyan);
+    }
+
+    /* ==========================================================================
+       SVG Diagrams & Interactive Elements
+       ========================================================================== */
+    .diagram-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      height: 100%;
+      background: rgba(7, 11, 19, 0.3);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px;
+      overflow: hidden;
+    }
+
+    svg {
+      max-width: 100%;
+      max-height: 100%;
+    }
+
+    /* CSS Keyframes for SVG Flows */
+    @keyframes flow-dash {
+      to {
+        stroke-dashoffset: -20;
+      }
+    }
+    .flow-line {
+      stroke-dasharray: 6, 4;
+      animation: flow-dash 1.5s linear infinite;
+    }
+    .flow-line-fast {
+      stroke-dasharray: 6, 4;
+      animation: flow-dash 0.8s linear infinite;
+    }
+    .flow-line-reverse {
+      stroke-dasharray: 6, 4;
+      animation: flow-dash 1.5s linear infinite reverse;
+    }
+
+    @keyframes pulse-node {
+      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px rgba(0, 242, 254, 0.4)); }
+      50% { transform: scale(1.03); filter: drop-shadow(0 0 10px rgba(0, 242, 254, 0.8)); }
+    }
+    .pulse-element {
+      transform-origin: center;
+      animation: pulse-node 3s ease-in-out infinite;
+    }
+
+    /* ==========================================================================
+       Comparison Tables Style
+       ========================================================================== */
+    .custom-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+      background: rgba(18, 26, 43, 0.4);
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+    }
+
+    .custom-table th {
+      background-color: rgba(79, 172, 254, 0.1);
+      color: var(--text-main);
+      font-family: var(--font-display);
+      font-weight: 600;
+      text-align: left;
+      padding: 12px 16px;
+      border-bottom: 2px solid var(--border-color);
+    }
+
+    .custom-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-muted);
+      vertical-align: middle;
+    }
+
+    .custom-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .custom-table tr:hover td {
+      background-color: rgba(255, 255, 255, 0.02);
+      color: var(--text-main);
+    }
+
+    .table-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .badge-cyan { background: rgba(0, 242, 254, 0.1); color: var(--accent-cyan); border: 1px solid rgba(0, 242, 254, 0.2); }
+    .badge-purple { background: rgba(171, 71, 188, 0.1); color: var(--accent-purple); border: 1px solid rgba(171, 71, 188, 0.2); }
+    .badge-green { background: rgba(52, 199, 89, 0.1); color: var(--accent-green); border: 1px solid rgba(52, 199, 89, 0.2); }
+    .badge-orange { background: rgba(255, 159, 10, 0.1); color: var(--accent-orange); border: 1px solid rgba(255, 159, 10, 0.2); }
+    .badge-red { background: rgba(255, 59, 48, 0.1); color: var(--accent-red); border: 1px solid rgba(255, 59, 48, 0.2); }
+
+    /* ==========================================================================
+       Interactive Code Blocks & Tabs
+       ========================================================================== */
+    .code-container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+      background-color: var(--bg-code);
+    }
+
+    .code-tabs {
+      display: flex;
+      background-color: rgba(7, 11, 19, 0.6);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0 10px;
+    }
+
+    .code-tab {
+      padding: 12px 18px;
+      font-family: var(--font-display);
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .code-tab.active {
+      color: var(--accent-cyan);
+      border-bottom-color: var(--accent-cyan);
+      background-color: rgba(255, 255, 255, 0.02);
+    }
+
+    .code-tab:hover:not(.active) {
+      color: var(--text-main);
+    }
+
+    .code-body {
+      flex: 1;
+      padding: 18px;
+      overflow-y: auto;
+      font-family: var(--font-code);
+      font-size: 0.85rem;
+      line-height: 1.5;
+      text-align: left;
+      white-space: pre;
+    }
+
+    .code-panel {
+      display: none;
+    }
+
+    .code-panel.active {
+      display: block;
+    }
+
+    /* Syntax Highlighting */
+    .keyword { color: #ff7b72; font-weight: 600; }
+    .string { color: #a5d6ff; }
+    .comment { color: #8b949e; font-style: italic; }
+    .number { color: #d2a8ff; }
+    .builtin { color: #ffa657; }
+    .def { color: #d2a8ff; font-weight: 600; }
+    .property { color: #79c0ff; }
+    .operator { color: #ff7b72; }
+
+    /* ==========================================================================
+       Bottom Controls Bar
+       ========================================================================== */
+    .bottom-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 40px;
+      border-top: 1px solid var(--border-color);
+      background-color: rgba(7, 11, 19, 0.4);
+      z-index: 10;
+    }
+
+    .nav-controls {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .btn-nav {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-size: 1.1rem;
+    }
+
+    .btn-nav:hover {
+      background: var(--primary-gradient);
+      border-color: transparent;
+      box-shadow: 0 0 15px rgba(0, 242, 254, 0.4);
+    }
+
+    .btn-nav:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+      background: transparent;
+      border-color: var(--border-color);
+      box-shadow: none;
+    }
+
+    .dots-indicator {
+      display: flex;
+      gap: 8px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: rgba(255, 255, 255, 0.15);
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .dot.active {
+      background-color: var(--accent-cyan);
+      width: 20px;
+      border-radius: 4px;
+      box-shadow: 0 0 8px var(--accent-cyan);
+    }
+
+    .slide-counter {
+      font-family: var(--font-display);
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.04);
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+    }
+
+    .utility-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-util {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 8px 12px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-util:hover {
+      color: var(--text-main);
+      background-color: rgba(255, 255, 255, 0.05);
+    }
+
+    /* Modal Styling */
+    .modal {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.9);
+      width: 500px;
+      background-color: var(--bg-dark-gray);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+
+    .modal.active {
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      z-index: 99;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .modal-title {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 1.3rem;
+      color: var(--text-main);
+    }
+
+    .btn-close-modal {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.2rem;
+      cursor: pointer;
+    }
+
+    .btn-close-modal:hover {
+      color: var(--text-main);
+    }
+
+    .modal-body p {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+
+    .shortcut-list {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 12px 20px;
+      margin-top: 15px;
+      font-size: 0.9rem;
+    }
+
+    .shortcut-key {
+      font-family: var(--font-code);
+      background: rgba(255, 255, 255, 0.08);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--border-color);
+      color: var(--accent-cyan);
+      text-align: center;
+      min-width: 30px;
+    }
+
+    .shortcut-desc {
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+    }
+
+    /* Index Panel / Sidebar Navigation */
+    .sidebar-panel {
+      position: absolute;
+      top: 0;
+      right: -320px;
+      width: 320px;
+      height: 100%;
+      background-color: var(--bg-dark-gray);
+      border-left: 1px solid var(--border-color);
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      transition: right 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+      box-shadow: -10px 0 30px rgba(0,0,0,0.5);
+    }
+
+    .sidebar-panel.active {
+      right: 0;
+    }
+
+    .sidebar-header {
+      padding: 24px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .sidebar-title {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 1.15rem;
+      color: var(--text-main);
+    }
+
+    .sidebar-list {
+      flex: 1;
+      overflow-y: auto;
+      list-style: none;
+      padding: 10px 0;
+    }
+
+    .sidebar-item {
+      padding: 12px 24px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: all 0.2s ease;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      border-left: 3px solid transparent;
+    }
+
+    .sidebar-item:hover {
+      background-color: rgba(255, 255, 255, 0.03);
+      color: var(--text-main);
+    }
+
+    .sidebar-item.active {
+      background-color: rgba(79, 172, 254, 0.05);
+      color: var(--accent-cyan);
+      border-left-color: var(--accent-cyan);
+    }
+
+    .sidebar-item-num {
+      font-family: var(--font-code);
+      font-size: 0.8rem;
+      color: rgba(255, 255, 255, 0.2);
+    }
+
+    .sidebar-item.active .sidebar-item-num {
+      color: var(--accent-cyan);
+    }
+
+    /* Laser Pointer Tool styling */
+    .laser-pointer-cursor {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      background: radial-gradient(circle, rgba(255, 59, 48, 1) 0%, rgba(255, 59, 48, 0.7) 40%, rgba(255, 59, 48, 0) 70%);
+      box-shadow: 0 0 10px rgba(255, 59, 48, 0.8);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 1000;
+      display: none;
+      transform: translate(-50%, -50%);
+    }
+
+    .deck-container.laser-active {
+      cursor: none;
+    }
+
+    /* ==========================================================================
+       Custom Slide Specific Styling
+       ========================================================================== */
+    /* Title Slide background effects */
+    .title-slide-bg {
+      position: absolute;
+      top: -20%;
+      left: -20%;
+      width: 140%;
+      height: 140%;
+      background: 
+        radial-gradient(circle at 30% 30%, rgba(0, 242, 254, 0.1) 0%, transparent 40%),
+        radial-gradient(circle at 70% 75%, rgba(171, 71, 188, 0.1) 0%, transparent 40%);
+      z-index: 0;
+      pointer-events: none;
+    }
+    
+    .slide-1-content {
+      position: relative;
+      z-index: 1;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+
+    .title-eyebrow {
+      font-family: var(--font-display);
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 3px;
+      font-size: 1.05rem;
+      background: var(--primary-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 20px;
+    }
+
+    .main-title {
+      font-family: var(--font-display);
+      font-size: 4.2rem;
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -2px;
+      margin-bottom: 20px;
+      color: var(--text-main);
+    }
+
+    .main-title span {
+      background: var(--primary-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .title-desc {
+      font-size: 1.35rem;
+      color: var(--text-muted);
+      max-width: 800px;
+      margin-bottom: 40px;
+      font-weight: 300;
+      line-height: 1.5;
+    }
+
+    .speaker-meta {
+      display: flex;
+      gap: 30px;
+      padding: 15px 30px;
+      border-radius: 30px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+    }
+
+    .meta-item {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .meta-item i {
+      color: var(--accent-cyan);
+    }
+
+    /* Workflow Modal Custom Styling */
+    .workflow-modal {
+      width: 960px !important;
+      max-width: 95vw;
+      height: 620px;
+      display: flex;
+      flex-direction: column;
+      background-color: var(--bg-dark-gray);
+      border: 1px solid var(--border-color);
+      box-shadow: 0 20px 50px rgba(0, 242, 254, 0.15);
+    }
+    
+    .workflow-steps-nav {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 12px;
+    }
+    
+    .workflow-step-tab {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 15px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    
+    .workflow-step-tab:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(0, 242, 254, 0.3);
+    }
+    
+    .workflow-step-tab.active {
+      background: rgba(0, 242, 254, 0.08);
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 12px rgba(0, 242, 254, 0.2);
+    }
+    
+    .workflow-step-tab .step-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      transition: all 0.3s ease;
+    }
+    
+    .workflow-step-tab.active .step-num {
+      background: var(--primary-gradient);
+      color: var(--bg-dark);
+    }
+    
+    .workflow-step-tab .step-title {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      transition: all 0.3s ease;
+    }
+    
+    .workflow-step-tab.active .step-title {
+      color: var(--text-main);
+    }
+    
+    .workflow-modal-body {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 24px;
+      overflow: hidden;
+      min-height: 0;
+    }
+    
+    .workflow-visual-panel {
+      background: rgba(7, 11, 19, 0.5);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .workflow-details-panel {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow-y: auto;
+      padding-right: 8px;
+    }
+    
+    .workflow-details-panel::-webkit-scrollbar {
+      width: 6px;
+    }
+    .workflow-details-panel::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .workflow-details-panel::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+    }
+    .workflow-details-panel::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+    
+    .workflow-description h3 {
+      font-family: var(--font-display);
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .workflow-description p {
+      font-size: 0.95rem;
+      line-height: 1.5;
+      color: var(--text-muted);
+      margin-bottom: 15px;
+    }
+    
+    .workflow-points-list {
+      list-style: none;
+      margin-bottom: 15px;
+      padding: 0;
+    }
+    
+    .workflow-points-list li {
+      position: relative;
+      padding-left: 24px;
+      margin-bottom: 10px;
+      font-size: 0.9rem;
+      line-height: 1.4;
+      color: var(--text-muted);
+      text-align: left;
+    }
+    
+    .workflow-points-list li strong {
+      color: var(--text-main);
+    }
+    
+    .workflow-points-list li::before {
+      content: "\f00c";
+      font-family: "Font Awesome 6 Free";
+      font-weight: 900;
+      position: absolute;
+      left: 0;
+      top: 2px;
+      font-size: 0.8rem;
+      color: var(--accent-cyan);
+    }
+    
+    /* Interactive cursor glow for cluster element */
+    #kafkaClusterInteractive {
+      cursor: pointer;
+    }
+    #kafkaClusterInteractive:hover rect.pulse-element {
+      stroke: var(--accent-cyan);
+      filter: drop-shadow(0 0 15px rgba(0, 242, 254, 0.9)) !important;
+    }
+    
+    /* SVG animations inside modal */
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.05); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .pulse-ring-element {
+      transform-origin: center;
+      animation: pulse-ring 2s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="deck-container" id="presentationDeck">
+    
+    <!-- Top Progress & Logo Bar -->
+    <div class="top-bar">
+      <div class="top-logo">
+        <i class="fa-solid fa-wind"></i>
+        <span>KAFKA INSIGHTS</span>
+      </div>
+      <div class="top-nav-title" id="currentCategory">Getting Started</div>
+      <div class="progress-container">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+    </div>
+
+    <!-- Active Laser Cursor -->
+    <div class="laser-pointer-cursor" id="laserPointer"></div>
+
+    <!-- Slides Window -->
+    <div class="slides-window" id="slidesWindow">
+      
+      <!-- SLIDE 1: Title -->
+      <div class="slide active" data-category="Getting Started">
+        <div class="title-slide-bg"></div>
+        <div class="slide-1-content">
+          <div class="title-eyebrow">Enterprise Event Streaming</div>
+          <h1 class="main-title">Mastering <span>Apache Kafka</span></h1>
+          <p class="title-desc">A deep dive into distributed commit logs, message semantics, cluster replication, and high-performance tuning parameters.</p>
+          <div class="speaker-meta">
+            <div class="meta-item">
+              <i class="fa-solid fa-user"></i>
+              <span>Tech Presentation</span>
+            </div>
+            <div class="meta-item">
+              <i class="fa-solid fa-network-wired"></i>
+              <span>Basic to Advanced Guide</span>
+            </div>
+            <div class="meta-item">
+              <i class="fa-solid fa-calendar"></i>
+              <span>July 2026</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 2: What is Kafka? -->
+      <div class="slide" data-category="Getting Started">
+        <div class="slide-header">
+          <span class="slide-category">02</span>
+          <h2 class="slide-title">The Core Paradigm: What is Apache Kafka?</h2>
+        </div>
+        <div class="slide-body grid-2col">
+          <div class="content-left">
+            <p><span class="slide-highlight">Apache Kafka</span> is an open-source distributed event streaming platform designed to handle high-throughput, real-time data feeds with low latency.</p>
+            <ul class="bullet-list">
+              <li><strong>Distributed Commit Log:</strong> Messages are appended sequentially to an immutable, write-ahead log stored on disk.</li>
+              <li><strong>Publish & Subscribe:</strong> Decouples producers (data sources) from consumers (data destinations).</li>
+              <li><strong>Durable Storage:</strong> Unlike traditional message queues, Kafka retains data for configurable periods, allowing history replays.</li>
+              <li><strong>Pull-Based Consumer model:</strong> Consumers poll Kafka for data, controlling their own consumption rate (backpressure safety).</li>
+            </ul>
+          </div>
+          <div class="content-right">
+            <div class="diagram-container">
+              <svg viewBox="0 0 450 320" xmlns="http://www.w3.org/2000/svg">
+                <!-- Definitions for gradients -->
+                <defs>
+                  <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#00f2fe"/>
+                    <stop offset="100%" stop-color="#4facfe"/>
+                  </linearGradient>
+                  <linearGradient id="purpleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#ab47bc"/>
+                    <stop offset="100%" stop-color="#7b1fa2"/>
+                  </linearGradient>
+                  <linearGradient id="darkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#1e293b"/>
+                    <stop offset="100%" stop-color="#0f172a"/>
+                  </linearGradient>
+                </defs>
+
+                <!-- Producer box -->
+                <rect x="20" y="110" width="90" height="70" rx="8" fill="url(#cyanGrad)" />
+                <text x="65" y="140" fill="#070b13" font-family="'Outfit'" font-weight="700" font-size="12" text-anchor="middle">Producers</text>
+                <text x="65" y="158" fill="#070b13" font-family="'Inter'" font-size="9" text-anchor="middle">(IoT, DB, Apps)</text>
+
+                <!-- Broker box -->
+                <g id="kafkaClusterInteractive" style="cursor: pointer;">
+                  <rect x="180" y="50" width="110" height="190" rx="10" fill="url(#darkGrad)" stroke="rgba(79, 172, 254, 0.4)" stroke-width="1.5" class="pulse-element" />
+                  <text x="235" y="75" fill="#f0f4f9" font-family="'Outfit'" font-weight="700" font-size="12" text-anchor="middle">KAFKA CLUSTER</text>
+                  <!-- Click to explore badge -->
+                  <rect x="195" y="210" width="80" height="14" rx="3" fill="rgba(0, 242, 254, 0.15)" stroke="rgba(0, 242, 254, 0.4)" stroke-width="0.5" />
+                  <text x="235" y="220" fill="#00f2fe" font-family="'Inter'" font-size="7" font-weight="800" text-anchor="middle" letter-spacing="0.2">CLICK TO EXPLORE</text>
+                </g>
+                
+                <!-- Topic Log representation inside cluster -->
+                <g transform="translate(195, 100)">
+                  <rect x="0" y="0" width="80" height="22" rx="4" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.1)" />
+                  <text x="40" y="15" fill="#00f2fe" font-family="'Fira Code'" font-size="9" text-anchor="middle">Topic: log_a</text>
+                </g>
+                <g transform="translate(195, 130)">
+                  <rect x="0" y="0" width="80" height="22" rx="4" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.1)" />
+                  <text x="40" y="15" fill="#00f2fe" font-family="'Fira Code'" font-size="9" text-anchor="middle">Topic: log_b</text>
+                </g>
+                <g transform="translate(195, 160)">
+                  <!-- Sequential commit log blocks -->
+                  <rect x="0" y="0" width="12" height="18" fill="#4facfe" rx="2" />
+                  <rect x="15" y="0" width="12" height="18" fill="#4facfe" rx="2" />
+                  <rect x="30" y="0" width="12" height="18" fill="#4facfe" rx="2" />
+                  <rect x="45" y="0" width="12" height="18" fill="#4facfe" rx="2" />
+                  <rect x="60" y="0" width="18" height="18" fill="#ab47bc" rx="2" />
+                  <text x="69" y="12" fill="#fff" font-family="'Fira Code'" font-size="8" text-anchor="middle" font-weight="bold">+</text>
+                  <text x="40" y="32" fill="#8b9bb4" font-family="'Inter'" font-size="7" text-anchor="middle">Append-Only Logs</text>
+                </g>
+
+                <!-- Consumer box -->
+                <rect x="340" y="110" width="90" height="70" rx="8" fill="url(#purpleGrad)" />
+                <text x="385" y="140" fill="#fff" font-family="'Outfit'" font-weight="700" font-size="12" text-anchor="middle">Consumers</text>
+                <text x="385" y="158" fill="#fff" font-family="'Inter'" font-size="9" text-anchor="middle">(DB, S3, Spark)</text>
+
+                <!-- Connecting Paths with dynamic flows -->
+                <path d="M 110 145 L 180 145" fill="none" stroke="#00f2fe" stroke-width="2" class="flow-line" />
+                <path d="M 290 145 L 340 145" fill="none" stroke="#ab47bc" stroke-width="2" class="flow-line" />
+
+                <!-- Explanatory Label -->
+                <rect x="150" y="270" width="170" height="30" rx="15" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)" />
+                <text x="235" y="289" fill="#8b9bb4" font-family="'Inter'" font-size="9" text-anchor="middle">Decoupled Architecture (Pub/Sub)</text>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 3: Core Architecture Components -->
+      <div class="slide" data-category="Getting Started">
+        <div class="slide-header">
+          <span class="slide-category">03</span>
+          <h2 class="slide-title">Core Architecture: Ecosystem Components</h2>
+        </div>
+        <div class="slide-body grid-2col">
+          <div class="content-left">
+            <ul class="bullet-list">
+              <li><strong>Brokers:</strong> Servers that receive, store, and serve messages. Together they form a clustered unit.</li>
+              <li><strong>Producers:</strong> Client applications that write data (events) to Kafka brokers. They automatically select which partition to write to.</li>
+              <li><strong>Consumers & Consumer Groups:</strong> Applications that read data. Grouping enables distributed scale, sharing partition consumption.</li>
+              <li><strong>Zookeeper / KRaft:</strong> The coordination plane. It handles controller election, cluster membership, and metadata configurations.</li>
+              <li><strong>Kafka Connect:</strong> Standardized integration framework for pulling data from databases/files or pushing to storage/indexers.</li>
+            </ul>
+          </div>
+          <div class="content-right" style="justify-content: space-around;">
+            <div class="glass-card">
+              <div class="card-title"><i class="fa-solid fa-layer-group"></i>Topics & Partitions</div>
+              <p style="font-size: 0.95rem; margin-bottom: 0;">A <strong>Topic</strong> is a logical stream category. Topics are split into <strong>Partitions</strong> which reside on different brokers to distribute load and enable parallelism.</p>
+            </div>
+            <div class="glass-card">
+              <div class="card-title"><i class="fa-solid fa-shield-halved"></i>Commit Log Durability</div>
+              <p style="font-size: 0.95rem; margin-bottom: 0;">Writes are immediate to disk (log file) but read from memory (OS Page Cache). High performance is achieved by utilizing sequential I/O and zero-copy transfers.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 4: Anatomy of a Topic, Partitions & Offsets -->
+      <div class="slide" data-category="Core Concepts">
+        <div class="slide-header">
+          <span class="slide-category">04</span>
+          <h2 class="slide-title">Anatomy of a Topic: Partitions & Offsets</h2>
+        </div>
+        <div class="slide-body grid-2col">
+          <div class="content-left">
+            <p>Each partition is an ordered, immutable sequence of records. It is the fundamental unit of scaling in Kafka.</p>
+            <ul class="bullet-list">
+              <li><strong>Offsets:</strong> A unique, incremental 64-bit integer assigned to every message written to a partition.</li>
+              <li><strong>Ordering Guarantee:</strong> Order is strictly guaranteed <strong>only within a single partition</strong>, not across the entire Topic.</li>
+              <li><strong>Append Only:</strong> Data is written at the tail (highest offset) and read from sequential locations. No updates or random inserts are allowed.</li>
+              <li><strong>Segments:</strong> Partitions are physically split on disk into <strong>Segment files</strong> (usually 1GB or 7 days). Old segments are deleted or compacted based on retention rules.</li>
+            </ul>
+          </div>
+          <div class="content-right">
+            <div class="diagram-container">
+              <svg viewBox="0 0 450 320" xmlns="http://www.w3.org/2000/svg">
+                <!-- Partitions Diagram -->
+                <text x="20" y="30" fill="#f0f4f9" font-family="'Outfit'" font-weight="700" font-size="12">Topic: order_events</text>
+                
+                <!-- Partition 0 -->
+                <g transform="translate(20, 50)">
+                  <text x="0" y="25" fill="#00f2fe" font-family="'Fira Code'" font-size="10">Partition 0</text>
+                  <!-- Logs blocks -->
+                  <rect x="80" y="10" width="30" height="24" rx="4" fill="#0f172a" stroke="rgba(255,255,255,0.1)" />
+                  <text x="95" y="26" fill="#8b9bb4" font-family="'Fira Code'" font-size="9" text-anchor="middle">0</text>
+
+                  <rect x="115" y="10" width="30" height="24" rx="4" fill="#0f172a" stroke="rgba(255,255,255,0.1)" />
+                  <text x="130" y="26" fill="#8b9bb4" font-family="'Fira Code'" font-size="9" text-anchor="middle">1</text>
+                  
+                  <rect x="150" y="10" width="30" height="24" rx="4" fill="#0f172a" stroke="rgba(255,255,255,0.1)" />
+                  <text x="165" y="26" fill="#8b9bb4" font-family="'Fira Code'" font-size="9" text-anchor="middle">2</text>
+
+                  <rect x="185" y="10" width="30" height="24" rx="4" fill="#1e293b" stroke="#ab47bc" stroke-width="1.5" />
+                  <text x="200" y="26" fill="#fff" font-family="'Fira Code'" font-size="9" text-anchor="middle">3</text>
+                  <text x="200" y="48" fill="#ab47bc" font-family="'Inter'" font-size="7" text-anchor="middle">Consumer A</text>
+                  
+                  <rect x="220" y="10" width="30" height="24" rx="4" fill="#0f172a" stroke="rgba(255,255,255,0.1)" />
+                  <text x="235" y="26" fill="#8b9bb4" font-family="'Fira Code'" font-size="9" text-anchor="middle">4</text>
+
+                  <rect x="255" y="10" width="30" height="24" rx="4" fill="#1e293b" stroke="#00f2fe" stroke-width="1.5" />
+                  <text x="270" y="26" fill="#fff" font-family="'Fira Code'" font-size="9" text-anchor="middle">5</text>
+                  <text x="270" y="48" fill="#00f2fe" font-family="'Inter'" font-size="7" text-anchor="middle">Consumer B</text>
+
+                  <rect x="290" y="10" width="30" height="24" rx="4" fill="rgba(0, 242, 254, 0.1)" stroke="#00f2fe" />
+                  <text x="305" y="26" fill="#00f2fe" font-family="'Fira Code'" font-size="9" text-anchor="middle">6</text>
+                  <text x="305" y="-3" fill="#00f2fe" font-family="'Inter'" font-size="7" text-anchor="middle">Write Head</text>
+                </g>
+
+                <!-- Partition 1 -->
+                <g transform="translate(20, 130)">
+                  <text x="0" y="25" fill="#00f2fe" font-family="'Fira Code'" font-size="10">Partition 1</text>
+                  <!-- Logs blocks -->
+                  <rect x="80" y="10" width="30" height="24" rx="4" fill="#0f172a" stroke="rgba(255,255,255,0.1)" />
+                  <text x="95" y="26" fill="#8b9bb4" font-family="'Fira Code'" font-size="9" text-anchor="middle">0</text>
+
+                  <rect x="115" y="10" width="30" height="24" rx="4" fill="#0f172a" stroke="rgba(255,255,255,0.1)" />
+                  <text x="130" y="26" fill="#8b9bb4" font-family="'Fira Code'" font-size="9" text-anchor="middle">1</text>
+
+                  <rect x="150" y="10" width="30" height="24" rx="4" fill="#1e293b" stroke="#ab47bc" stroke-width="1.5" />
+                  <text x="165" y="26" fill="#fff" font-family="'Fira Code'" font-size="9" text-anchor="middle">2</text>
+                  <text x="165" y="48" fill="#ab47bc" font-family="'Inter'" font-size="7" text-anchor="middle">Consumer C</text>
+
+                  <rect x="185" y="10" width="30" height="24" rx="4" fill="rgba(0, 242, 254, 0.1)" stroke="#00f2fe" />
+                  <text x="200" y="26" fill="#00f2fe" font-family="'Fira Code'" font-size="9" text-anchor="middle">3</text>
+                </g>
+
+                <!-- Partition 2 -->
+                <g transform="translate(20, 210)">
+                  <text x="0" y="25" fill="#00f2fe" font-family="'Fira Code'" font-size="10">Partition 2</text>
+                  <!-- Logs blocks -->
+                  <rect x="80" y="10" width="30" height="24" rx="4" fill="#0f172a" stroke="rgba(255,255,255,0.1)" />
+                  <text x="95" y="26" fill="#8b9bb4" font-family="'Fira Code'" font-size="9" text-anchor="middle">0</text>
+
+                  <rect x="115" y="10" width="30" height="24" rx="4" fill="#0f172a" stroke="rgba(255,255,255,0.1)" />
+                  <text x="130" y="26" fill="#8b9bb4" font-family="'Fira Code'" font-size="9" text-anchor="middle">1</text>
+
+                  <rect x="150" y="10" width="30" height="24" rx="4" fill="#0f172a" stroke="rgba(255,255,255,0.1)" />
+                  <text x="165" y="26" fill="#8b9bb4" font-family="'Fira Code'" font-size="9" text-anchor="middle">2</text>
+
+                  <rect x="185" y="10" width="30" height="24" rx="4" fill="#0f172a" stroke="rgba(255,255,255,0.1)" />
+                  <text x="200" y="26" fill="#8b9bb4" font-family="'Fira Code'" font-size="9" text-anchor="middle">3</text>
+
+                  <rect x="220" y="10" width="30" height="24" rx="4" fill="rgba(0, 242, 254, 0.1)" stroke="#00f2fe" />
+                  <text x="235" y="26" fill="#00f2fe" font-family="'Fira Code'" font-size="9" text-anchor="middle">4</text>
+                </g>
+
+                <line x1="100" y1="285" x2="320" y2="285" stroke="rgba(255,255,255,0.2)" stroke-width="2" marker-end="url(#arrow)" />
+                <text x="210" y="302" fill="#8b9bb4" font-family="'Inter'" font-size="9" text-anchor="middle">Time (Incremental Offsets)</text>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 5: Message Structure & Key Routing -->
+      <div class="slide" data-category="Core Concepts">
+        <div class="slide-header">
+          <span class="slide-category">05</span>
+          <h2 class="slide-title">Message Structure & Partition Routing</h2>
+        </div>
+        <div class="slide-body grid-2col">
+          <div class="content-left">
+            <p>A Kafka record is a byte array envelope consisting of metadata and payload:</p>
+            <ul class="bullet-list">
+              <li><strong>Key:</strong> Used to determine destination partition and guarantees ordering. If null, messages are round-robined or sticky partitioned.</li>
+              <li><strong>Value:</strong> The payload (serialized using JSON, Avro, Protobuf, etc.).</li>
+              <li><strong>Timestamp:</strong> Auto-set by Producer (CreateTime) or Broker (LogAppendTime). Used for lifecycle and windowed operations.</li>
+              <li><strong>Headers:</strong> Key-value metadata pairs. Critical for distributed tracing (correlation IDs), security tokens, and routing.</li>
+            </ul>
+          </div>
+          <div class="content-right" style="justify-content: center;">
+            <div class="glass-card" style="font-family: var(--font-code); font-size: 0.85rem; line-height: 1.6;">
+              <div style="color: var(--accent-cyan); border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 12px; font-weight: bold; font-family: var(--font-display);">Kafka Record Byte Layout</div>
+              <div><span class="property">Record Header:</span> [Magic Byte] [Attributes] [Timestamp]</div>
+              <div><span class="property">Key Length:</span> <span class="number">4 Bytes</span></div>
+              <div><span class="property">Key:</span> <span class="string">"USR-1002"</span> <span class="comment">(e.g. Serialized ID)</span></div>
+              <div><span class="property">Value Length:</span> <span class="number">64 Bytes</span></div>
+              <div><span class="property">Value:</span> <span class="string">{"action": "click", "item": "laptop"}</span></div>
+              <div><span class="property">Headers:</span> {<span class="string">"traceId"</span>: <span class="string">"abf78-2a"</span>}</div>
+              
+              <div style="margin-top: 15px; padding-top: 12px; border-top: 1px dashed var(--border-color); color: var(--text-muted); font-family: var(--font-body); font-size: 0.8rem;">
+                <i class="fa-solid fa-calculator" style="color: var(--accent-cyan); margin-right: 5px;"></i>
+                <strong>Key Routing Math:</strong><br>
+                <code style="color: var(--accent-orange); font-family: var(--font-code);">partition = murmurHash(key) % numPartitions</code>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 6: Consumer Groups & Rebalancing -->
+      <div class="slide" data-category="Intermediate">
+        <div class="slide-header">
+          <span class="slide-category">06</span>
+          <h2 class="slide-title">Consumer Groups & Partition Rebalancing</h2>
+        </div>
+        <div class="slide-body grid-2col">
+          <div class="content-left">
+            <p>Consumers working together under the same <span class="slide-highlight">group.id</span> form a Consumer Group. Partitions are divided among the members.</p>
+            <ul class="bullet-list">
+              <li><strong>Scale & Share:</strong> 1 partition is assigned to exactly 1 consumer in a group. Idle consumers occur if count exceeds partitions.</li>
+              <li><strong>Rebalancing:</strong> Process of reassigning partition ownership when membership changes.</li>
+              <li><strong>Triggers:</strong> Consumer crash/startup, network split, topic partition expansion.</li>
+              <li><strong>Rebalance Protocols:</strong>
+                <ul>
+                  <li><em>Eager (Stop-the-world):</em> Revokes all partitions, pauses processing, then reassigns.</li>
+                  <li><em>Cooperative Sticky:</em> Iterative revocation. Keeps unchanged assignments running.</li>
+                </ul>
+              </li>
+            </ul>
+          </div>
+          <div class="content-right">
+            <div class="diagram-container">
+              <svg viewBox="0 0 450 320" xmlns="http://www.w3.org/2000/svg">
+                <!-- Topic Partitions -->
+                <rect x="20" y="30" width="130" height="230" rx="8" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.08)" />
+                <text x="85" y="50" fill="#f0f4f9" font-family="'Outfit'" font-weight="700" font-size="11" text-anchor="middle">TOPIC PARTITIONS</text>
+                
+                <rect id="p0" x="35" y="70" width="100" height="35" rx="4" fill="#0f172a" stroke="#00f2fe" />
+                <text x="85" y="92" fill="#fff" font-family="'Fira Code'" font-size="10" text-anchor="middle">Partition 0</text>
+                
+                <rect id="p1" x="35" y="115" width="100" height="35" rx="4" fill="#0f172a" stroke="#00f2fe" />
+                <text x="85" y="137" fill="#fff" font-family="'Fira Code'" font-size="10" text-anchor="middle">Partition 1</text>
+                
+                <rect id="p2" x="35" y="160" width="100" height="35" rx="4" fill="#0f172a" stroke="#00f2fe" />
+                <text x="85" y="182" fill="#fff" font-family="'Fira Code'" font-size="10" text-anchor="middle">Partition 2</text>
+                
+                <rect id="p3" x="35" y="205" width="100" height="35" rx="4" fill="#0f172a" stroke="#00f2fe" />
+                <text x="85" y="227" fill="#fff" font-family="'Fira Code'" font-size="10" text-anchor="middle">Partition 3</text>
+
+                <!-- Consumer Group Box -->
+                <rect x="260" y="30" width="170" height="230" rx="8" fill="rgba(171, 71, 188, 0.05)" stroke="rgba(171, 71, 188, 0.2)" />
+                <text x="345" y="50" fill="#ab47bc" font-family="'Outfit'" font-weight="700" font-size="11" text-anchor="middle">CONSUMER GROUP A</text>
+
+                <rect id="c1" x="280" y="80" width="130" height="50" rx="6" fill="#1e293b" stroke="#ab47bc" stroke-width="1.5" />
+                <text x="345" y="105" fill="#fff" font-family="'Outfit'" font-weight="600" font-size="11" text-anchor="middle">Consumer C1</text>
+                <text x="345" y="120" fill="#8b9bb4" font-family="'Inter'" font-size="8" text-anchor="middle">Active: P0, P1</text>
+
+                <rect id="c2" x="280" y="170" width="130" height="50" rx="6" fill="#1e293b" stroke="#ab47bc" stroke-width="1.5" />
+                <text x="345" y="195" fill="#fff" font-family="'Outfit'" font-weight="600" font-size="11" text-anchor="middle">Consumer C2</text>
+                <text x="345" y="210" fill="#8b9bb4" font-family="'Inter'" font-size="8" text-anchor="middle">Active: P2, P3</text>
+
+                <!-- Mapping Lines -->
+                <path d="M 135 87 L 280 100" fill="none" stroke="#ab47bc" stroke-width="1.5" class="flow-line-fast" />
+                <path d="M 135 132 L 280 110" fill="none" stroke="#ab47bc" stroke-width="1.5" class="flow-line-fast" />
+                <path d="M 135 177 L 280 185" fill="none" stroke="#ab47bc" stroke-width="1.5" class="flow-line-fast" />
+                <path d="M 135 222 L 280 195" fill="none" stroke="#ab47bc" stroke-width="1.5" class="flow-line-fast" />
+
+                <text x="225" y="285" fill="#8b9bb4" font-family="'Inter'" font-size="9" text-anchor="middle">Dynamic assignment keeps balance during reloads.</text>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 7: Replication & High Availability -->
+      <div class="slide" data-category="Intermediate">
+        <div class="slide-header">
+          <span class="slide-category">07</span>
+          <h2 class="slide-title">Replication & High Availability</h2>
+        </div>
+        <div class="slide-body grid-2col">
+          <div class="content-left">
+            <p>Data safety in Kafka is guaranteed through replication settings across multiple physical brokers.</p>
+            <ul class="bullet-list">
+              <li><strong>Leader Partition:</strong> Handles 100% of read and write actions. Only one broker holds the Leader for a partition.</li>
+              <li><strong>Follower Partitions:</strong> Replicate data passively from the Leader. If the Leader goes offline, a Follower is elected leader.</li>
+              <li><strong>In-Sync Replicas (ISR):</strong> Followers that are actively caught up with the Leader (controlled by lag configs).</li>
+              <li><strong>ACKS Configurations:</strong>
+                <ul>
+                  <li><code style="color: var(--accent-orange);">acks=0</code>: Fire and forget. No verification.</li>
+                  <li><code style="color: var(--accent-orange);">acks=1</code>: Acknowledged by Leader only.</li>
+                  <li><code style="color: var(--accent-orange);">acks=all</code>: Acked by all ISRs (Highest safety).</li>
+                </ul>
+              </li>
+            </ul>
+          </div>
+          <div class="content-right">
+            <div class="diagram-container">
+              <svg viewBox="0 0 450 320" xmlns="http://www.w3.org/2000/svg">
+                <!-- Broker 1 - LEADER -->
+                <g transform="translate(10, 60)">
+                  <rect x="0" y="0" width="125" height="110" rx="8" fill="#0f172a" stroke="#34c759" stroke-width="2" class="pulse-element" />
+                  <text x="62.5" y="25" fill="#34c759" font-family="'Outfit'" font-weight="700" font-size="11" text-anchor="middle">BROKER 1 (LEADER)</text>
+                  <rect x="15" y="45" width="95" height="24" rx="4" fill="rgba(52,199,89,0.1)" stroke="#34c759" />
+                  <text x="62.5" y="60" fill="#fff" font-family="'Fira Code'" font-size="9" text-anchor="middle">Partition 0 - Msg 8</text>
+                  <text x="62.5" y="92" fill="#8b9bb4" font-family="'Inter'" font-size="8" text-anchor="middle">Handles Reads & Writes</text>
+                </g>
+
+                <!-- Broker 2 - FOLLOWER (ISR) -->
+                <g transform="translate(155, 60)">
+                  <rect x="0" y="0" width="125" height="110" rx="8" fill="#0f172a" stroke="#00f2fe" stroke-width="1.5" />
+                  <text x="62.5" y="25" fill="#00f2fe" font-family="'Outfit'" font-weight="700" font-size="10" text-anchor="middle">BROKER 2 (ISR)</text>
+                  <rect x="15" y="45" width="95" height="24" rx="4" fill="rgba(0,242,254,0.05)" stroke="#00f2fe" />
+                  <text x="62.5" y="60" fill="#fff" font-family="'Fira Code'" font-size="9" text-anchor="middle">Partition 0 - Msg 8</text>
+                  <text x="62.5" y="92" fill="#8b9bb4" font-family="'Inter'" font-size="8" text-anchor="middle">Synchronized Follower</text>
+                </g>
+
+                <!-- Broker 3 - FOLLOWER (LAGGING) -->
+                <g transform="translate(300, 60)">
+                  <rect x="0" y="0" width="125" height="110" rx="8" fill="#0f172a" stroke="#ff9f0a" stroke-width="1.5" />
+                  <text x="62.5" y="25" fill="#ff9f0a" font-family="'Outfit'" font-weight="700" font-size="10" text-anchor="middle">BROKER 3 (LAGGING)</text>
+                  <rect x="15" y="45" width="95" height="24" rx="4" fill="rgba(255,159,10,0.05)" stroke="#ff9f0a" />
+                  <text x="62.5" y="60" fill="#fff" font-family="'Fira Code'" font-size="9" text-anchor="middle">Partition 0 - Msg 6</text>
+                  <text x="62.5" y="92" fill="#ff9f0a" font-family="'Inter'" font-size="8" text-anchor="middle">Out of Sync Replica</text>
+                </g>
+
+                <!-- Replica Pulling Lines -->
+                <path d="M 135 110 L 155 110" fill="none" stroke="#00f2fe" stroke-width="2" class="flow-line-reverse" />
+                <path d="M 135 130 L 300 130" fill="none" stroke="#ff9f0a" stroke-width="2" class="flow-line-reverse" style="animation-duration: 4s;" />
+                
+                <text x="225" y="230" fill="#8b9bb4" font-family="'Inter'" font-size="9" text-anchor="middle">ISRs pull messages from Leader asynchronously.</text>
+                <text x="225" y="245" fill="#8b9bb4" font-family="'Inter'" font-size="9" text-anchor="middle">Only ISRs are eligible for automatic leader election.</text>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 8: ZooKeeper vs. KRaft Mode -->
+      <div class="slide" data-category="Advanced Concepts">
+        <div class="slide-header">
+          <span class="slide-category">08</span>
+          <h2 class="slide-title">ZooKeeper vs. KRaft Metadata Architecture</h2>
+        </div>
+        <div class="slide-body" style="justify-content: center;">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th style="width: 20%;">Feature</th>
+                <th style="width: 40%;">ZooKeeper Mode (Legacy)</th>
+                <th style="width: 40%;">KRaft Mode (Modern / Production Ready)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="slide-highlight"><i class="fa-solid fa-diagram-project" style="color: var(--accent-cyan); margin-right: 8px;"></i>Architecture</td>
+                <td>Dual-system. Requires separate ZooKeeper cluster and broker consensus.</td>
+                <td>Single-system. Metadata consensus is built directly into Kafka via Raft.</td>
+              </tr>
+              <tr>
+                <td class="slide-highlight"><i class="fa-solid fa-gauge-high" style="color: var(--accent-purple); margin-right: 8px;"></i>Partition Limit</td>
+                <td>Limited to ~200,000 partitions per cluster due to ZooKeeper ZNode sync lag.</td>
+                <td>Scales to millions of partitions. Minimal latency metadata log.</td>
+              </tr>
+              <tr>
+                <td class="slide-highlight"><i class="fa-solid fa-bolt" style="color: var(--accent-green); margin-right: 8px;"></i>Controller Election</td>
+                <td>Controller election occurs on ZK. Broker failures trigger re-elections. (Seconds to Minutes).</td>
+                <td>Active controller is pre-elected. Failover is instantaneous (Sub-second / Milliseconds).</td>
+              </tr>
+              <tr>
+                <td class="slide-highlight"><i class="fa-solid fa-gears" style="color: var(--accent-orange); margin-right: 8px;"></i>Operations</td>
+                <td>Complex. Requires configuring, monitoring, and securing two different technologies.</td>
+                <td>Simplified. Unified security protocol, port structures, configs and tooling.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SLIDE 9: Delivery Guarantees & Transactional Kafka -->
+      <div class="slide" data-category="Advanced Concepts">
+        <div class="slide-header">
+          <span class="slide-category">09</span>
+          <h2 class="slide-title">Delivery Guarantees & Transactional Semantics</h2>
+        </div>
+        <div class="slide-body" style="justify-content: center;">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th style="width: 18%;">Guarantee</th>
+                <th style="width: 25%;">Producer Configuration</th>
+                <th style="width: 25%;">Consumer Behavior</th>
+                <th style="width: 32%;">Implications / Trade-offs</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="table-badge badge-orange">At-Least-Once</span></td>
+                <td><code style="color: var(--text-main);">acks=all</code><br><code style="color: var(--text-main);">retries > 0</code></td>
+                <td>Offsets committed after processing message.</td>
+                <td>Default behavior. No data loss, but duplicate processing can occur on failures.</td>
+              </tr>
+              <tr>
+                <td><span class="table-badge badge-red">At-Most-Once</span></td>
+                <td><code style="color: var(--text-main);">acks=0</code> or <code style="color: var(--text-main);">1</code><br><code style="color: var(--text-main);">retries=0</code></td>
+                <td>Offsets committed before processing message.</td>
+                <td>Lowest latency, zero duplicates, but data can be lost if consumers fail mid-processing.</td>
+              </tr>
+              <tr>
+                <td><span class="table-badge badge-green">Exactly-Once (EOS)</span></td>
+                <td><code style="color: var(--text-main);">enable.idempotence=true</code><br><code style="color: var(--text-main);">transactional.id</code> set</td>
+                <td>Read Committed mode:<br><code style="color: var(--text-main);">isolation.level=read_committed</code></td>
+                <td>Guarantees exact processing. Leverages transactions across multiple topics & offsets. Higher latency.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SLIDE 10: Stream Processing (Kafka Streams & ksqlDB) -->
+      <div class="slide" data-category="Advanced Concepts">
+        <div class="slide-header">
+          <span class="slide-category">10</span>
+          <h2 class="slide-title">Stream Processing: Kafka Streams & ksqlDB</h2>
+        </div>
+        <div class="slide-body grid-2col">
+          <div class="content-left">
+            <p>Beyond ingestion, Kafka serves as a complete real-time computational engine.</p>
+            <ul class="bullet-list">
+              <li><strong>Kafka Streams:</strong> A lightweight client library for Java/Scala. Runs inside your app process. No dedicated compute cluster needed.</li>
+              <li><strong>Dualism of Streams and Tables:</strong>
+                <ul>
+                  <li><em>KStream:</em> Representation of an insert stream (each event is independent).</li>
+                  <li><em>KTable:</em> Representation of updates (changelog stream showing latest state per key).</li>
+                </ul>
+              </li>
+              <li><strong>Stateful Operations:</strong> Built-in support for joins, aggregations, and windowing using local RocksDB caches.</li>
+              <li><strong>ksqlDB:</strong> Event streaming database that allows creating continuous queries using ANSI SQL syntax.</li>
+            </ul>
+          </div>
+          <div class="content-right" style="justify-content: center;">
+            <div class="glass-card" style="font-family: var(--font-code); font-size: 0.82rem; line-height: 1.5; padding: 18px;">
+              <div style="color: var(--accent-cyan); border-bottom: 1px solid var(--border-color); padding-bottom: 6px; margin-bottom: 12px; font-weight: bold; font-family: var(--font-display);">ksqlDB Real-time Aggregation</div>
+              <div><span class="keyword">CREATE STREAM</span> customer_clicks (</div>
+              <div>&nbsp;&nbsp;user_id <span class="builtin">VARCHAR</span>,</div>
+              <div>&nbsp;&nbsp;page_id <span class="builtin">VARCHAR</span></div>
+              <div>) <span class="keyword">WITH</span> (kafka_topic=<span class="string">'clicks'</span>, value_format=<span class="string">'json'</span>);</div>
+              <br>
+              <div><span class="keyword">CREATE TABLE</span> user_click_counts <span class="keyword">AS</span></div>
+              <div><span class="keyword">SELECT</span> user_id, <span class="def">count</span>(*) <span class="keyword">AS</span> click_count</div>
+              <div><span class="keyword">FROM</span> customer_clicks</div>
+              <div><span class="keyword">WINDOW TUMBLING</span> (<span class="keyword">SIZE</span> <span class="number">10</span> <span class="keyword">MINUTES</span>)</div>
+              <div><span class="keyword">GROUP BY</span> user_id;</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 11: Kafka Connect -->
+      <div class="slide" data-category="Advanced Concepts">
+        <div class="slide-header">
+          <span class="slide-category">11</span>
+          <h2 class="slide-title">Kafka Connect: Data Integration Pipeline</h2>
+        </div>
+        <div class="slide-body grid-2col">
+          <div class="content-left">
+            <p>Kafka Connect is a tool for scalably and reliably streaming data between Kafka and other systems.</p>
+            <ul class="bullet-list">
+              <li><strong>No-Code Integrations:</strong> Reusable connectors configured using simple JSON. No custom programming needed.</li>
+              <li><strong>Source Connectors:</strong> Ingest from external databases (CDC), queues, file directories, or web sockets.</li>
+              <li><strong>Sink Connectors:</strong> Export topic records out to Elasticsearch, S3, Snowflake, PostgreSQL, etc.</li>
+              <li><strong>Distributed Workers:</strong> Runs on a cluster, autoscales tasks, automatically reassigns integration jobs on failures.</li>
+            </ul>
+          </div>
+          <div class="content-right" style="justify-content: center;">
+            <div class="glass-card" style="font-family: var(--font-code); font-size: 0.85rem; line-height: 1.5; padding: 18px;">
+              <div style="color: var(--accent-cyan); border-bottom: 1px solid var(--border-color); padding-bottom: 6px; margin-bottom: 12px; font-weight: bold; font-family: var(--font-display);">Debezium CDC Connector Config (JSON)</div>
+              <div>{</div>
+              <div>&nbsp;&nbsp;<span class="property">"name"</span>: <span class="string">"postgres-source"</span>,</div>
+              <div>&nbsp;&nbsp;<span class="property">"config"</span>: {</div>
+              <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="property">"connector.class"</span>: <span class="string">"io.debezium.connector.postgresql.PostgresConnector"</span>,</div>
+              <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="property">"database.hostname"</span>: <span class="string">"prod-db"</span>,</div>
+              <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="property">"database.dbname"</span>: <span class="string">"orders"</span>,</div>
+              <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="property">"database.server.name"</span>: <span class="string">"dbserver1"</span>,</div>
+              <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="property">"table.include.list"</span>: <span class="string">"public.order_items"</span>,</div>
+              <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="property">"tasks.max"</span>: <span class="string">"3"</span></div>
+              <div>&nbsp;&nbsp;}</div>
+              <div>}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 12: Hands-on Python Producer -->
+      <div class="slide" data-category="Hands-on Code">
+        <div class="slide-header">
+          <span class="slide-category">12</span>
+          <h2 class="slide-title">Developing Producers in Python</h2>
+        </div>
+        <div class="slide-body">
+          <div class="code-container">
+            <div class="code-tabs">
+              <div class="code-tab active" data-target="prod-python-basic3"><i class="fa-brands fa-python"></i> kafka-python (Basic)</div>
+              <div class="code-tab" data-target="prod-confluent-basic3"><i class="fa-brands fa-python"></i> confluent-kafka (Standard)</div>
+              <div class="code-tab" data-target="prod-confluent-advanced3"><i class="fa-solid fa-shield-halved"></i> Idempotent / Safe</div>
+            </div>
+            <div class="code-body">
+              <!-- Basic python -->
+              <div class="code-panel active" id="prod-python-basic3">
+<span class="keyword">from</span> kafka <span class="keyword">import</span> KafkaProducer
+<span class="keyword">import</span> json
+
+<span class="comment"># Initialize Producer matching client's local app/producer.py setup</span>
+producer = KafkaProducer(
+    bootstrap_servers=<span class="string">"localhost:9092"</span>,
+    value_serializer=<span class="keyword">lambda</span> v: json.dumps(v).encode(<span class="string">"utf-8"</span>)
+)
+
+event = {<span class="string">"incident_id"</span>: <span class="string">"INC-1001"</span>, <span class="string">"severity"</span>: <span class="string">"High"</span>, <span class="string">"site"</span>: <span class="string">"Delhi DC"</span>}
+
+<span class="comment"># Send is asynchronous by default</span>
+future = producer.send(<span class="string">"ehs-incidents"</span>, value=event)
+
+<span class="comment"># Wait for response acknowledgement (optional - turns call into synchronous)</span>
+record_metadata = future.get(timeout=<span class="number">10</span>)
+print(f<span class="string">"Sent to topic {record_metadata.topic} partition {record_metadata.partition} offset {record_metadata.offset}"</span>)
+
+producer.flush()  <span class="comment"># Force sending all buffered records</span>
+producer.close()</div>
+              
+              <!-- Confluent basic -->
+              <div class="code-panel" id="prod-confluent-basic3">
+<span class="keyword">from</span> confluent_kafka <span class="keyword">import</span> Producer
+
+conf = {
+    <span class="string">'bootstrap.servers'</span>: <span class="string">"localhost:9092"</span>
+}
+
+producer = Producer(conf)
+
+<span class="keyword">def</span> <span class="def">delivery_report</span>(err, msg):
+    <span class="comment">""" Callback method invoked when message is acknowledged or failed. """</span>
+    <span class="keyword">if</span> err <span class="keyword">is not</span> <span class="keyword">None</span>:
+        print(f<span class="string">"Message delivery failed: {err}"</span>)
+    <span class="keyword">else</span>:
+        print(f<span class="string">"Message delivered to {msg.topic()} [{msg.partition()}] at offset {msg.offset()}"</span>)
+
+producer.produce(
+    topic=<span class="string">'ehs-incidents'</span>, 
+    value=<span class="string">'{"severity": "High", "site": "Mumbai"}'</span>, 
+    callback=delivery_report
+)
+
+<span class="comment"># Serve callbacks from buffer queue</span>
+producer.poll(<span class="number">1</span>)
+producer.flush()</div>
+
+              <!-- Confluent advanced -->
+              <div class="code-panel" id="prod-confluent-advanced3">
+<span class="keyword">from</span> confluent_kafka <span class="keyword">import</span> Producer
+
+conf = {
+    <span class="string">'bootstrap.servers'</span>: <span class="string">"localhost:9092"</span>,
+    <span class="comment"># Idempotent configurations</span>
+    <span class="string">'enable.idempotence'</span>: <span class="keyword">True</span>,               <span class="comment"># Ensures exactly-once delivery from producer to broker</span>
+    <span class="string">'acks'</span>: <span class="string">'all'</span>,                              <span class="comment"># Wait for all ISR to acknowledge</span>
+    <span class="string">'max.in.flight.requests.per.connection'</span>: <span class="number">5</span>, <span class="comment"># Keeps order even on retries</span>
+    <span class="string">'retries'</span>: <span class="number">5</span>,                              <span class="comment"># Retry writing on temporary broker failure</span>
+    
+    <span class="comment"># High-throughput batch tuning</span>
+    <span class="string">'linger.ms'</span>: <span class="number">20</span>,                            <span class="comment"># Wait up to 20ms to batch messages</span>
+    <span class="string">'compression.type'</span>: <span class="string">'snappy'</span>                <span class="comment"># Compress data before sending</span>
+}
+
+producer = Producer(conf)
+producer.produce(<span class="string">'ehs-incidents'</span>, value=<span class="string">'payload'</span>)
+producer.flush()</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 13: Hands-on Python Consumer -->
+      <div class="slide" data-category="Hands-on Code">
+        <div class="slide-header">
+          <span class="slide-category">13</span>
+          <h2 class="slide-title">Developing Consumers in Python</h2>
+        </div>
+        <div class="slide-body">
+          <div class="code-container">
+            <div class="code-tabs">
+              <div class="code-tab active" data-target="cons-python-basic3"><i class="fa-brands fa-python"></i> kafka-python (Basic)</div>
+              <div class="code-tab" data-target="cons-confluent-manual3"><i class="fa-solid fa-shield-halved"></i> Manual Offset Commit</div>
+              <div class="code-tab" data-target="cons-graceful3"><i class="fa-solid fa-power-off"></i> Graceful Shutdown</div>
+            </div>
+            <div class="code-body">
+              <!-- Basic python -->
+              <div class="code-panel active" id="cons-python-basic3">
+<span class="keyword">from</span> kafka <span class="keyword">import</span> KafkaConsumer
+<span class="keyword">import</span> json
+
+consumer = KafkaConsumer(
+    <span class="string">"ehs-incidents"</span>,
+    bootstrap_servers=<span class="string">"localhost:9092"</span>,
+    auto_offset_reset=<span class="string">"earliest"</span>,
+    enable_auto_commit=<span class="keyword">True</span>,       <span class="comment"># Automatically commit offset every 5 seconds</span>
+    group_id=<span class="string">"ehs-group"</span>,
+    value_deserializer=<span class="keyword">lambda</span> v: json.loads(v.decode(<span class="string">"utf-8"</span>))
+)
+
+print(<span class="string">"Consumer started..."</span>)
+<span class="keyword">for</span> message <span class="keyword">in</span> consumer:
+    event = message.value
+    print(f<span class="string">"Received event: {event}"</span>)
+    <span class="comment"># Danger: If app crashes here, we might lose records or process duplicates</span></div>
+              
+              <!-- Confluent manual -->
+              <div class="code-panel" id="cons-confluent-manual3">
+<span class="keyword">from</span> confluent_kafka <span class="keyword">import</span> Consumer, KafkaError
+
+conf = {
+    <span class="string">'bootstrap.servers'</span>: <span class="string">"localhost:9092"</span>,
+    <span class="string">'group.id'</span>: <span class="string">"ehs-group-manual"</span>,
+    <span class="string">'auto.offset.reset'</span>: <span class="string">'earliest'</span>,
+    <span class="string">'enable.auto.commit'</span>: <span class="keyword">False</span>  <span class="comment"># Disable auto commits (we control durability)</span>
+}
+
+consumer = Consumer(conf)
+consumer.subscribe([<span class="string">'ehs-incidents'</span>])
+
+<span class="keyword">try</span>:
+    <span class="keyword">while</span> <span class="keyword">True</span>:
+        msg = consumer.poll(timeout=<span class="number">1.0</span>)
+        <span class="keyword">if</span> msg <span class="keyword">is None</span>: <span class="keyword">continue</span>
+        <span class="keyword">if</span> msg.error():
+            <span class="keyword">if</span> msg.error().code() == KafkaError._PARTITION_EOF: <span class="keyword">continue</span>
+            <span class="keyword">else</span>: print(msg.error()); <span class="keyword">break</span>
+            
+        <span class="comment"># Business Process</span>
+        print(f<span class="string">"Processing: {msg.value().decode('utf-8')}"</span>)
+        
+        <span class="comment"># Manual commit of the specific partition offsets (Sync/Async)</span>
+        consumer.commit(asynchronous=<span class="keyword">False</span>)
+<span class="keyword">finally</span>:
+    consumer.close()</div>
+
+              <!-- Graceful shutdown -->
+              <div class="code-panel" id="cons-graceful3">
+<span class="keyword">import</span> signal, sys
+<span class="keyword">from</span> confluent_kafka <span class="keyword">import</span> Consumer
+
+consumer = Consumer({
+    <span class="string">'bootstrap.servers'</span>: <span class="string">'localhost:9092'</span>,
+    <span class="string">'group.id'</span>: <span class="string">'ehs-group-graceful'</span>
+})
+consumer.subscribe([<span class="string">'ehs-incidents'</span>])
+
+<span class="keyword">def</span> <span class="def">shutdown_handler</span>(sig, frame):
+    print(<span class="string">"Graceful shutdown triggered. Closing consumer..."</span>)
+    <span class="comment"># Triggers partition revocation, commits offsets, and leaves group</span>
+    consumer.close()
+    sys.exit(<span class="number">0</span>)
+
+<span class="comment"># Register OS Signals</span>
+signal.signal(signal.SIGINT, shutdown_handler)
+signal.signal(signal.SIGTERM, shutdown_handler)
+
+<span class="keyword">while</span> <span class="keyword">True</span>:
+    msg = consumer.poll(<span class="number">1.0</span>)
+    <span class="comment"># Consumer processing loop...</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 14: Case Study: Workspace EHS Architecture -->
+      <div class="slide" data-category="Project Example">
+        <div class="slide-header">
+          <span class="slide-category">14</span>
+          <h2 class="slide-title">Case Study: EHS Incident Event Pipeline</h2>
+        </div>
+        <div class="slide-body grid-2col">
+          <div class="content-left">
+            <p>Our workspace implements a real-world multi-consumer pipeline using the <span class="slide-highlight">ehs-incidents</span> topic.</p>
+            <ul class="bullet-list">
+              <li><strong>Single Source of Truth:</strong> <code style="color: var(--accent-cyan);">producer.py</code> streams incident events (ID, Severity, Site) into Kafka.</li>
+              <li><strong>Parallel Decoupled Pipelines:</strong>
+                <ul>
+                  <li><strong>alert-group</strong> (<code style="color: var(--text-main);">alert_consumer.py</code>): Filters "High" severity issues instantly to trigger operations team notifications.</li>
+                  <li><strong>db-group</strong> (<code style="color: var(--text-main);">db_consumer.py</code>): Archives all events into persistent storage for auditing.</li>
+                  <li><strong>ml-group</strong> (<code style="color: var(--text-main);">ml_consumer.py</code>): Feeds events directly into ML models for predicting escalation probabilities.</li>
+                </ul>
+              </li>
+              <li><strong>Fault Isolation:</strong> Slow DB transactions do not delay critical emergency alarms.</li>
+            </ul>
+          </div>
+          <div class="content-right">
+            <div class="diagram-container">
+              <svg viewBox="0 0 450 320" xmlns="http://www.w3.org/2000/svg">
+                <!-- EHS Diagram -->
+                <!-- Producer -->
+                <rect x="15" y="110" width="80" height="60" rx="6" fill="url(#cyanGrad)" />
+                <text x="55" y="140" fill="#070b13" font-family="'Outfit'" font-weight="700" font-size="10" text-anchor="middle">producer.py</text>
+                <text x="55" y="152" fill="#070b13" font-family="'Inter'" font-size="7" text-anchor="middle">(High/Med/Low Events)</text>
+
+                <!-- Kafka Topic -->
+                <rect x="135" y="70" width="110" height="150" rx="8" fill="#0f172a" stroke="rgba(0, 242, 254, 0.3)" />
+                <text x="190" y="90" fill="#f0f4f9" font-family="'Outfit'" font-weight="700" font-size="9" text-anchor="middle">TOPIC: ehs-incidents</text>
+                
+                <rect x="150" y="110" width="80" height="20" rx="3" fill="#1e293b" stroke="rgba(255,255,255,0.1)" />
+                <text x="190" y="122" fill="#00f2fe" font-family="'Fira Code'" font-size="8" text-anchor="middle">Partition 0</text>
+                
+                <rect x="150" y="140" width="80" height="20" rx="3" fill="#1e293b" stroke="rgba(255,255,255,0.1)" />
+                <text x="190" y="152" fill="#00f2fe" font-family="'Fira Code'" font-size="8" text-anchor="middle">Partition 1</text>
+                
+                <rect x="150" y="170" width="80" height="20" rx="3" fill="#1e293b" stroke="rgba(255,255,255,0.1)" />
+                <text x="190" y="182" fill="#00f2fe" font-family="'Fira Code'" font-size="8" text-anchor="middle">Partition 2</text>
+
+                <!-- Consumers -->
+                <!-- Alert Group -->
+                <rect x="295" y="45" width="130" height="50" rx="6" fill="#1e293b" stroke="#ff3b30" stroke-width="1.5" />
+                <text x="360" y="65" fill="#fff" font-family="'Outfit'" font-weight="600" font-size="9" text-anchor="middle">alert_consumer.py</text>
+                <text x="360" y="78" fill="#8b9bb4" font-family="'Inter'" font-size="7" text-anchor="middle">Group: alert-group (Safety Alerts)</text>
+
+                <!-- DB Group -->
+                <rect x="295" y="120" width="130" height="50" rx="6" fill="#1e293b" stroke="#4facfe" stroke-width="1.5" />
+                <text x="360" y="140" fill="#fff" font-family="'Outfit'" font-weight="600" font-size="9" text-anchor="middle">db_consumer.py</text>
+                <text x="360" y="153" fill="#8b9bb4" font-family="'Inter'" font-size="7" text-anchor="middle">Group: db-group (Database Archival)</text>
+
+                <!-- ML Group -->
+                <rect x="295" y="195" width="130" height="50" rx="6" fill="#1e293b" stroke="#ab47bc" stroke-width="1.5" class="pulse-element" />
+                <text x="360" y="215" fill="#fff" font-family="'Outfit'" font-weight="600" font-size="9" text-anchor="middle">ml_consumer.py</text>
+                <text x="360" y="228" fill="#8b9bb4" font-family="'Inter'" font-size="7" text-anchor="middle">Group: ml-group (ML Scoring Model)</text>
+
+                <!-- Lines -->
+                <path d="M 95 140 L 135 140" fill="none" stroke="#00f2fe" stroke-width="1.5" class="flow-line" />
+                <path d="M 245 125 L 295 70" fill="none" stroke="#ff3b30" stroke-width="1.5" class="flow-line" />
+                <path d="M 245 145 L 295 145" fill="none" stroke="#4facfe" stroke-width="1.5" class="flow-line" />
+                <path d="M 245 165 L 295 220" fill="none" stroke="#ab47bc" stroke-width="1.5" class="flow-line-fast" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 15: Workspace Code: EHS ML Risk Consumer -->
+      <div class="slide" data-category="Project Example">
+        <div class="slide-header">
+          <span class="slide-category">15</span>
+          <h2 class="slide-title">Workspace Code: EHS ML Risk Consumer</h2>
+        </div>
+        <div class="slide-body">
+          <div class="code-container">
+            <div class="code-tabs">
+              <div class="code-tab active"><i class="fa-solid fa-code"></i> app/ml_consumer.py (Production Ready)</div>
+            </div>
+            <div class="code-body" style="font-size: 0.8rem; line-height: 1.4;">
+<span class="keyword">from</span> kafka <span class="keyword">import</span> KafkaConsumer
+<span class="keyword">import</span> json
+
+<span class="keyword">class</span> <span class="def">IncidentRiskModel</span>:
+    <span class="keyword">def</span> <span class="def">__init__</span>(self):
+        self.site_risk_weights = {<span class="string">"Delhi DC"</span>: <span class="number">0.4</span>, <span class="string">"Mumbai DC"</span>: <span class="number">0.35</span>, <span class="string">"Bangalore DC"</span>: <span class="number">0.25</span>}
+        self.severity_multipliers = {<span class="string">"High"</span>: <span class="number">2.5</span>, <span class="string">"Medium"</span>: <span class="number">1.5</span>, <span class="string">"Low"</span>: <span class="number">0.8</span>}
+
+    <span class="keyword">def</span> <span class="def">predict_escalation_probability</span>(self, site, severity):
+        base_weight = self.site_risk_weights.get(site, <span class="number">0.3</span>)
+        multiplier = self.severity_multipliers.get(severity, <span class="number">1.0</span>)
+        <span class="keyword">return</span> min(max(base_weight * multiplier, <span class="number">0.0</span>), <span class="number">1.0</span>)
+
+<span class="comment"># Consume events from the EHS-Incidents topic</span>
+consumer = KafkaConsumer(
+    <span class="string">"ehs-incidents"</span>,
+    bootstrap_servers=<span class="string">"localhost:9092"</span>,
+    auto_offset_reset=<span class="string">"earliest"</span>,
+    group_id=<span class="string">"ml-group"</span>,  <span class="comment"># Independent consumer group ID</span>
+    value_deserializer=<span class="keyword">lambda</span> x: json.loads(x.decode(<span class="string">"utf-8"</span>))
+)
+
+model = IncidentRiskModel()
+print(<span class="string">"ML Risk Consumer Listening..."</span>)
+
+<span class="keyword">for</span> message <span class="keyword">in</span> consumer:
+    incident = message.value
+    prob = model.predict_escalation_probability(incident.get(<span class="string">"site"</span>), incident.get(<span class="string">"severity"</span>))
+    print(f<span class="string">"[{incident.get('incident_id')}] Escalation Probability: {prob:.2f}"</span>)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 16: Production Tuning Cheat Sheet -->
+      <div class="slide" data-category="Production Tuning">
+        <div class="slide-header">
+          <span class="slide-category">16</span>
+          <h2 class="slide-title">Production Tuning Cheat Sheet</h2>
+        </div>
+        <div class="slide-body" style="justify-content: center;">
+          <table class="custom-table" style="font-size: 0.88rem;">
+            <thead>
+              <tr>
+                <th style="width: 25%;">Use Case Target</th>
+                <th style="width: 35%;">Key Configuration Parameters</th>
+                <th style="width: 40%;">What it Accomplishes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="table-badge badge-cyan"><i class="fa-solid fa-gauge-high" style="margin-right: 5px;"></i>High Throughput</span></td>
+                <td>
+                  <code style="color: var(--text-main);">compression.type=snappy / zstd</code><br>
+                  <code style="color: var(--text-main);">batch.size=65536</code> (64KB)<br>
+                  <code style="color: var(--text-main);">linger.ms=20</code>
+                </td>
+                <td>Aggregates individual records into larger compressed batches before committing writes, maximizing network efficiency.</td>
+              </tr>
+              <tr>
+                <td><span class="table-badge badge-purple"><i class="fa-solid fa-bolt" style="margin-right: 5px;"></i>Low Latency</span></td>
+                <td>
+                  <code style="color: var(--text-main);">linger.ms=0</code><br>
+                  <code style="color: var(--text-main);">acks=1</code> or <code style="color: var(--text-main);">0</code><br>
+                  <code style="color: var(--text-main);">compression.type=none</code>
+                </td>
+                <td>Disables buffering to immediately push events to the network, responding to consumers in sub-milliseconds.</td>
+              </tr>
+              <tr>
+                <td><span class="table-badge badge-green"><i class="fa-solid fa-shield-halved" style="margin-right: 5px;"></i>Zero Data Loss (Durability)</span></td>
+                <td>
+                  <code style="color: var(--text-main);">acks=all</code><br>
+                  <code style="color: var(--text-main);">min.insync.replicas=2</code> (with RF=3)<br>
+                  <code style="color: var(--text-main);">enable.idempotence=true</code>
+                </td>
+                <td>Requires full consensus of replica nodes. Prevents broker write loss, and guarantees duplicate writes are ignored.</td>
+              </tr>
+              <tr>
+                <td><span class="table-badge badge-orange"><i class="fa-solid fa-signal" style="margin-right: 5px;"></i>Consumer Stability</span></td>
+                <td>
+                  <code style="color: var(--text-main);">max.poll.interval.ms=300000</code> (5m)<br>
+                  <code style="color: var(--text-main);">session.timeout.ms=45000</code><br>
+                  <code style="color: var(--text-main);">heartbeat.interval.ms=3000</code>
+                </td>
+                <td>Offsets heartbeat frequencies. Avoids false-positive rebalances when processing heavy or slow batches.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SLIDE 17: Q&A -->
+      <div class="slide" data-category="Summary">
+        <div class="slide-1-content" style="text-align: left; align-items: flex-start; justify-content: space-around; width: 100%;">
+          <div>
+            <div class="title-eyebrow">Wrap Up</div>
+            <h1 class="main-title">Summary & Discussion</h1>
+            <p class="title-desc" style="max-width: none;">Kafka is a critical backbone for modern distributed systems. Decoupling storage and compute enables scalable event streaming.</p>
+          </div>
+          
+          <div style="display: flex; gap: 40px; width: 100%;">
+            <div class="glass-card" style="flex: 1;">
+              <div class="card-title" style="color: var(--accent-cyan);"><i class="fa-solid fa-circle-check"></i>Key Takeaways</div>
+              <ul class="bullet-list" style="font-size: 0.95rem;">
+                <li>Always use partition keys to enforce message routing order.</li>
+                <li>Design consumer poll limits carefully to prevent group rebalances.</li>
+                <li>Transition from legacy ZooKeeper to KRaft for production environments.</li>
+              </ul>
+            </div>
+            
+            <div class="glass-card" style="flex: 1;">
+              <div class="card-title" style="color: var(--accent-purple);"><i class="fa-solid fa-comments"></i>Q&A Topics</div>
+              <ul class="bullet-list" style="font-size: 0.95rem;">
+                <li>What is our current partition key routing strategy?</li>
+                <li>How will we handle schema migrations (Avro vs JSON)?</li>
+                <li>Are our consumer commit intervals properly configured for backpressure?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Bottom Controls & Navigation -->
+    <div class="bottom-bar">
+      
+      <!-- Utility controls (Left) -->
+      <div class="utility-controls">
+        <button class="btn-util" id="btnIndex"><i class="fa-solid fa-list-ul"></i><span>Index</span></button>
+        <button class="btn-util" id="btnLaser"><i class="fa-solid fa-arrow-pointer"></i><span>Laser Pointer</span></button>
+      </div>
+
+      <!-- Main Navigation dots (Center) -->
+      <div class="nav-controls">
+        <button class="btn-nav" id="btnPrev" disabled><i class="fa-solid fa-chevron-left"></i></button>
+        
+        <div class="dots-indicator" id="dotsContainer">
+          <!-- Dynamically created -->
+        </div>
+
+        <button class="btn-nav" id="btnNext"><i class="fa-solid fa-chevron-right"></i></button>
+      </div>
+
+      <!-- Slide counter and shortcuts (Right) -->
+      <div class="utility-controls">
+        <div class="slide-counter" id="slideCounter">1 / 17</div>
+        <button class="btn-util" id="btnShortcuts"><i class="fa-solid fa-keyboard"></i><span>Keymap</span></button>
+      </div>
+
+    </div>
+
+    <!-- Slide Index Panel (Sidebar) -->
+    <div class="sidebar-panel" id="sidebarPanel">
+      <div class="sidebar-header">
+        <div class="sidebar-title">Slide Index</div>
+        <button class="btn-close-modal" id="btnCloseSidebar"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <ul class="sidebar-list" id="sidebarList">
+        <!-- Dynamically created -->
+      </ul>
+    </div>
+
+    <!-- Keyboard Shortcuts Modal -->
+    <div class="modal-overlay" id="modalOverlay"></div>
+    <div class="modal" id="shortcutsModal">
+      <div class="modal-header">
+        <div class="modal-title">Keyboard Navigation Map</div>
+        <button class="btn-close-modal" id="btnCloseModal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <p>Use these keyboard mappings to navigate through slides during your presentation:</p>
+        <div class="shortcut-list">
+          <div class="shortcut-key"><i class="fa-solid fa-arrow-right"></i></div>
+          <div class="shortcut-desc">Next Slide (or Spacebar)</div>
+          
+          <div class="shortcut-key"><i class="fa-solid fa-arrow-left"></i></div>
+          <div class="shortcut-desc">Previous Slide</div>
+          
+          <div class="shortcut-key">L</div>
+          <div class="shortcut-desc">Toggle Red Laser Pointer pointer</div>
+          
+          <div class="shortcut-key">I</div>
+          <div class="shortcut-desc">Toggle Slide Index Sidebar</div>
+          <div class="shortcut-key">Esc</div>
+          <div class="shortcut-desc">Close Sidebar / Modal</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Interactive Kafka Workflow Modal -->
+    <div class="modal-overlay" id="workflowModalOverlay"></div>
+    <div class="modal workflow-modal" id="workflowModal">
+      <div class="modal-header">
+        <div class="modal-title" style="display: flex; align-items: center; gap: 10px;">
+          <i class="fa-solid fa-network-wired" style="color: var(--accent-cyan);"></i>
+          <span>Interactive Kafka Workflow Pipeline</span>
+        </div>
+        <button class="btn-close-modal" id="btnCloseWorkflowModal"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      
+      <div class="workflow-steps-nav">
+        <div class="workflow-step-tab active" data-step="0">
+          <span class="step-num">1</span>
+          <span class="step-title">Produce & Route</span>
+        </div>
+        <div class="workflow-step-tab" data-step="1">
+          <span class="step-num">2</span>
+          <span class="step-title">Commit Log Write</span>
+        </div>
+        <div class="workflow-step-tab" data-step="2">
+          <span class="step-num">3</span>
+          <span class="step-title">Replicate (ISR)</span>
+        </div>
+        <div class="workflow-step-tab" data-step="3">
+          <span class="step-num">4</span>
+          <span class="step-title">Poll & Commit</span>
+        </div>
+      </div>
+      
+      <div class="workflow-modal-body">
+        <!-- Left panel: Visual simulation/interactive diagram -->
+        <div class="workflow-visual-panel">
+          <div id="workflowVisualContent" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;"></div>
+        </div>
+        
+        <!-- Right panel: Details & explanation -->
+        <div class="workflow-details-panel">
+          <div id="workflowStepDescription" class="workflow-description">
+            <!-- Content injected dynamically by JS -->
+          </div>
+          
+          <!-- Mini control buttons inside modal -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 15px;">
+            <button class="btn-util" id="btnPrevWorkflowStep" style="font-size: 0.85rem;"><i class="fa-solid fa-arrow-left"></i> Prev</button>
+            <span id="workflowStepIndicator" style="font-family: var(--font-code); font-size: 0.8rem; color: var(--text-muted);">Step 1 of 4</span>
+            <button class="btn-util" id="btnNextWorkflowStep" style="font-size: 0.85rem;">Next <i class="fa-solid fa-arrow-right"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- JavaScript Controls Logic -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const slides = document.querySelectorAll(".slide");
+      const prevBtn = document.getElementById("btnPrev");
+      const nextBtn = document.getElementById("btnNext");
+      const dotsContainer = document.getElementById("dotsContainer");
+      const slideCounter = document.getElementById("slideCounter");
+      const categoryLabel = document.getElementById("currentCategory");
+      const progressBar = document.getElementById("progressBar");
+      
+      const sidebarPanel = document.getElementById("sidebarPanel");
+      const sidebarList = document.getElementById("sidebarList");
+      const btnIndex = document.getElementById("btnIndex");
+      const btnCloseSidebar = document.getElementById("btnCloseSidebar");
+      
+      const shortcutsModal = document.getElementById("shortcutsModal");
+      const modalOverlay = document.getElementById("modalOverlay");
+      const btnShortcuts = document.getElementById("btnShortcuts");
+      const btnCloseModal = document.getElementById("btnCloseModal");
+
+      const btnLaser = document.getElementById("btnLaser");
+      const laserPointer = document.getElementById("laserPointer");
+      const presentationDeck = document.getElementById("presentationDeck");
+
+      let currentSlide = 0;
+      let laserActive = false;
+
+      // Initialize slide deck controls
+      function initDeck() {
+        // Clear existing dynamic elements in case of reinits
+        dotsContainer.innerHTML = "";
+        sidebarList.innerHTML = "";
+
+        // Create navigation dots & sidebar items
+        slides.forEach((slide, idx) => {
+          // Dots
+          const dot = document.createElement("div");
+          dot.classList.add("dot");
+          if (idx === 0) dot.classList.add("active");
+          dot.addEventListener("click", () => goToSlide(idx));
+          dotsContainer.appendChild(dot);
+
+          // Sidebar items
+          const heading = slide.querySelector(".slide-title") ? slide.querySelector(".slide-title").textContent : "Title Slide";
+          const li = document.createElement("li");
+          li.classList.add("sidebar-item");
+          if (idx === 0) li.classList.add("active");
+          li.innerHTML = `<span class="sidebar-item-num">${String(idx + 1).padStart(2, '0')}</span><span>${heading}</span>`;
+          li.addEventListener("click", () => {
+            goToSlide(idx);
+            toggleSidebar(false);
+          });
+          sidebarList.appendChild(li);
+        });
+
+        updateSlideState();
+      }
+
+      function updateSlideState() {
+        slides.forEach((slide, idx) => {
+          slide.classList.remove("active", "prev");
+          if (idx === currentSlide) {
+            slide.classList.add("active");
+          } else if (idx < currentSlide) {
+            slide.classList.add("prev");
+          }
+        });
+
+        // Update Dots
+        const dots = document.querySelectorAll(".dot");
+        dots.forEach((dot, idx) => {
+          dot.classList.toggle("active", idx === currentSlide);
+        });
+
+        // Update Sidebar
+        const sidebarItems = document.querySelectorAll(".sidebar-item");
+        sidebarItems.forEach((item, idx) => {
+          item.classList.toggle("active", idx === currentSlide);
+        });
+
+        // Update buttons
+        prevBtn.disabled = currentSlide === 0;
+        nextBtn.disabled = currentSlide === slides.length - 1;
+
+        // Counter
+        slideCounter.textContent = `${currentSlide + 1} / ${slides.length}`;
+
+        // Progress bar
+        const progressPct = (currentSlide / (slides.length - 1)) * 100;
+        progressBar.style.width = `${progressPct}%`;
+
+        // Category label
+        const category = slides[currentSlide].getAttribute("data-category") || "Getting Started";
+        categoryLabel.textContent = category;
+      }
+
+      function goToSlide(idx) {
+        if (idx >= 0 && idx < slides.length) {
+          currentSlide = idx;
+          updateSlideState();
+        }
+      }
+
+      function nextSlide() {
+        if (currentSlide < slides.length - 1) {
+          goToSlide(currentSlide + 1);
+        }
+      }
+
+      function prevSlide() {
+        if (currentSlide > 0) {
+          goToSlide(currentSlide - 1);
+        }
+      }
+
+      // Keyboard support
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowRight" || e.key === " ") {
+          e.preventDefault();
+          nextSlide();
+        } else if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          prevSlide();
+        } else if (e.key === "Escape") {
+          toggleSidebar(false);
+          toggleShortcuts(false);
+        } else if (e.key.toLowerCase() === "i") {
+          toggleSidebar();
+        } else if (e.key.toLowerCase() === "l") {
+          toggleLaser();
+        }
+      });
+
+      // Navigation button listeners
+      nextBtn.addEventListener("click", nextSlide);
+      prevBtn.addEventListener("click", prevSlide);
+
+      // Index Sidebar functions
+      function toggleSidebar(forceState) {
+        const isCurrentlyActive = sidebarPanel.classList.contains("active");
+        const nextState = forceState !== undefined ? forceState : !isCurrentlyActive;
+        sidebarPanel.classList.toggle("active", nextState);
+      }
+
+      btnIndex.addEventListener("click", () => toggleSidebar());
+      btnCloseSidebar.addEventListener("click", () => toggleSidebar(false));
+
+      // Shortcuts Modal functions
+      function toggleShortcuts(forceState) {
+        const isCurrentlyActive = shortcutsModal.classList.contains("active");
+        const nextState = forceState !== undefined ? forceState : !isCurrentlyActive;
+        shortcutsModal.classList.toggle("active", nextState);
+        modalOverlay.classList.toggle("active", nextState);
+      }
+
+      btnShortcuts.addEventListener("click", () => toggleShortcuts());
+      btnCloseModal.addEventListener("click", () => toggleShortcuts(false));
+      modalOverlay.addEventListener("click", () => toggleShortcuts(false));
+
+      // Laser Pointer
+      function toggleLaser(forceState) {
+        laserActive = forceState !== undefined ? forceState : !laserActive;
+        btnLaser.classList.toggle("active", laserActive);
+        presentationDeck.classList.toggle("laser-active", laserActive);
+        if (!laserActive) {
+          laserPointer.style.display = "none";
+        }
+      }
+
+      btnLaser.addEventListener("click", () => toggleLaser());
+
+      presentationDeck.addEventListener("mousemove", (e) => {
+        if (laserActive) {
+          const rect = presentationDeck.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          laserPointer.style.left = `${x}px`;
+          laserPointer.style.top = `${y}px`;
+          laserPointer.style.display = "block";
+        }
+      });
+
+      presentationDeck.addEventListener("mouseleave", () => {
+        laserPointer.style.display = "none";
+      });
+
+      // Code Tab switching
+      const codeContainers = document.querySelectorAll(".code-container");
+      codeContainers.forEach(container => {
+        const tabs = container.querySelectorAll(".code-tab");
+        const panels = container.querySelectorAll(".code-panel");
+
+        tabs.forEach(tab => {
+          tab.addEventListener("click", () => {
+            tabs.forEach(t => t.classList.remove("active"));
+            panels.forEach(p => p.classList.remove("active"));
+
+            tab.classList.add("active");
+            const targetId = tab.getAttribute("data-target");
+            container.querySelector(`#${targetId}`).classList.add("active");
+          });
+        });
+      });
+
+      // Swipe Gestures for Mobile
+      let touchStartX = 0;
+      let touchEndX = 0;
+      presentationDeck.addEventListener("touchstart", (e) => {
+        touchStartX = e.changedTouches[0].screenX;
+      }, false);
+
+      presentationDeck.addEventListener("touchend", (e) => {
+        touchEndX = e.changedTouches[0].screenX;
+        handleSwipe();
+      }, false);
+
+      function handleSwipe() {
+        if (touchEndX < touchStartX - 50) {
+          nextSlide();
+        }
+        if (touchEndX > touchStartX + 50) {
+          prevSlide();
+        }
+      }
+      // Workflow Steps Definition & Config
+      const workflowSteps = [
+        {
+          title: "Produce & Route",
+          icon: "fa-paper-plane",
+          color: "var(--accent-cyan)",
+          description: "Producers initiate the pipeline by creating events and routing them to target partitions.",
+          bullets: [
+            "<strong>Serialization:</strong> Objects or database rows are converted into raw byte arrays using formats like JSON, Avro, or Protobuf.",
+            "<strong>Partitioning:</strong> If a message key exists, MurmurHash determines the partition: <code>murmurHash(key) % partitions</code>. This guarantees ordering by key.",
+            "<strong>Client Buffering:</strong> Messages are accumulated in a memory buffer pool to send in high-throughput batches, reducing network round-trips."
+          ],
+          renderVisual: () => `
+            <svg viewBox="0 0 400 280" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:100%;">
+              <!-- Producer Box -->
+              <rect x="20" y="100" width="80" height="50" rx="6" fill="url(#cyanGrad)" />
+              <text x="60" y="125" fill="#070b13" font-family="'Outfit'" font-weight="700" font-size="10" text-anchor="middle">Producer</text>
+              <text x="60" y="137" fill="#070b13" font-family="'Inter'" font-size="7" text-anchor="middle">events buffer</text>
+
+              <!-- Partition Queues -->
+              <text x="250" y="35" fill="#f0f4f9" font-family="'Outfit'" font-weight="700" font-size="10">Topic Partitions</text>
+              
+              <!-- P0 -->
+              <rect x="250" y="50" width="120" height="30" rx="4" fill="#0f172a" stroke="rgba(255,255,255,0.05)" />
+              <text x="260" y="68" fill="#8b9bb4" font-family="'Fira Code'" font-size="8">P0</text>
+              <rect x="290" y="56" width="18" height="18" rx="2" fill="#1e293b" stroke="rgba(255,255,255,0.1)" />
+              <rect x="312" y="56" width="18" height="18" rx="2" fill="#1e293b" stroke="rgba(255,255,255,0.1)" />
+
+              <!-- P1 -->
+              <rect x="250" y="95" width="120" height="30" rx="4" fill="#0f172a" stroke="rgba(0, 242, 254, 0.3)" />
+              <text x="260" y="113" fill="#00f2fe" font-family="'Fira Code'" font-size="8">P1</text>
+              <rect x="290" y="101" width="18" height="18" rx="2" fill="#0f172a" stroke="#00f2fe" />
+              <rect x="312" y="101" width="18" height="18" rx="2" fill="#0f172a" stroke="#00f2fe" />
+              
+              <!-- Incoming routed packet animation -->
+              <g class="routed-packet">
+                <circle cx="0" cy="0" r="5" fill="#00f2fe">
+                  <animateMotion path="M 100 125 Q 180 150 250 110" dur="2s" repeatCount="indefinite" />
+                </circle>
+              </g>
+
+              <!-- P2 -->
+              <rect x="250" y="140" width="120" height="30" rx="4" fill="#0f172a" stroke="rgba(255,255,255,0.05)" />
+              <text x="260" y="158" fill="#8b9bb4" font-family="'Fira Code'" font-size="8">P2</text>
+              <rect x="290" y="146" width="18" height="18" rx="2" fill="#1e293b" stroke="rgba(255,255,255,0.1)" />
+
+              <!-- Connecting Dotted Paths -->
+              <path d="M 100 125 Q 180 80 250 65" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1.5" stroke-dasharray="3,3" />
+              <path d="M 100 125 Q 180 125 250 110" fill="none" stroke="#00f2fe" stroke-width="1.5" stroke-dasharray="3,3" style="opacity: 0.6;" />
+              <path d="M 100 125 Q 180 170 250 155" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1.5" stroke-dasharray="3,3" />
+
+              <text x="180" y="210" fill="#8b9bb4" font-family="'Inter'" font-size="9" text-anchor="middle">
+                key: "USR-1002" &rarr; murmurHash(key) % 3 = 1
+              </text>
+              <text x="180" y="228" fill="#00f2fe" font-family="'Fira Code'" font-weight="bold" font-size="9" text-anchor="middle">
+                Routed dynamically to Partition 1
+              </text>
+            </svg>
+          `
+        },
+        {
+          title: "Commit Log Write",
+          icon: "fa-database",
+          color: "var(--accent-cyan)",
+          description: "Kafka Broker handles incoming event bytes by writing them sequentially to disk.",
+          bullets: [
+            "<strong>Sequential Write (O(1)):</strong> Messages are written to the end of the commit log file on disk. No random seeks or database reindexing are performed, yielding raw disk throughput.",
+            "<strong>OS Page Cache:</strong> Writes are written directly to the operating system's kernel page cache. The OS periodically flushes pages to physical storage, resulting in memory-like speed.",
+            "<strong>Zero-Copy Transfer:</strong> For reads, Kafka uses the kernel's <code>sendfile</code> system call. This copies data directly from page cache to the network socket, avoiding user-space context switches."
+          ],
+          renderVisual: () => `
+            <svg viewBox="0 0 400 280" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:100%;">
+              <!-- Memory Cache Box -->
+              <rect x="20" y="40" width="150" height="90" rx="8" fill="rgba(0, 242, 254, 0.05)" stroke="rgba(0, 242, 254, 0.3)" stroke-width="1.5" />
+              <text x="95" y="65" fill="#00f2fe" font-family="'Outfit'" font-weight="700" font-size="11" text-anchor="middle">OS Page Cache</text>
+              <text x="95" y="80" fill="#8b9bb4" font-family="'Inter'" font-size="8" text-anchor="middle">(System Memory)</text>
+              
+              <!-- Memory Blocks -->
+              <rect x="40" y="95" width="22" height="22" rx="3" fill="#0f172a" stroke="#00f2fe" />
+              <rect x="68" y="95" width="22" height="22" rx="3" fill="#0f172a" stroke="#00f2fe" />
+              <rect x="96" y="95" width="22" height="22" rx="3" fill="#0f172a" stroke="#00f2fe" />
+              <rect x="124" y="95" width="22" height="22" rx="3" fill="#0f172a" stroke="#00f2fe" />
+
+              <!-- Disk Commits Box -->
+              <rect x="230" y="40" width="150" height="90" rx="8" fill="rgba(171, 71, 188, 0.05)" stroke="rgba(171, 71, 188, 0.3)" stroke-width="1.5" />
+              <text x="305" y="65" fill="#ab47bc" font-family="'Outfit'" font-weight="700" font-size="11" text-anchor="middle">Commit Log (Disk)</text>
+              <text x="305" y="80" fill="#8b9bb4" font-family="'Inter'" font-size="8" text-anchor="middle">(Sequential Append Only)</text>
+              
+              <!-- Disk Log Segment blocks -->
+              <rect x="250" y="95" width="18" height="22" rx="2" fill="#ab47bc" />
+              <rect x="272" y="95" width="18" height="22" rx="2" fill="#ab47bc" />
+              <rect x="294" y="95" width="18" height="22" rx="2" fill="#ab47bc" />
+              <rect x="316" y="95" width="18" height="22" rx="2" fill="#ab47bc" />
+              <!-- Appended block with animation -->
+              <rect x="338" y="95" width="18" height="22" rx="2" fill="#ab47bc">
+                <animate attributeName="opacity" values="0.2;1;0.2" dur="1.5s" repeatCount="indefinite" />
+              </rect>
+              <text x="347" y="110" fill="#fff" font-family="'Fira Code'" font-size="10" font-weight="bold" text-anchor="middle">+</text>
+
+              <!-- Connection Arrow (Page Cache -> Disk Flush) -->
+              <path d="M 170 85 L 230 85" fill="none" stroke="#ab47bc" stroke-width="2" marker-end="url(#arrow)" />
+              <text x="200" y="78" fill="#ab47bc" font-family="'Inter'" font-size="7" text-anchor="middle">OS Flush</text>
+
+              <line x1="95" y1="180" x2="305" y2="180" stroke="rgba(255,255,255,0.08)" stroke-width="2" />
+              <circle cx="305" cy="180" r="4" fill="#ab47bc" />
+              <text x="200" y="200" fill="#f0f4f9" font-family="'Fira Code'" font-size="9" text-anchor="middle">Write Head: Offset N+1</text>
+              <text x="200" y="218" fill="#8b9bb4" font-family="'Inter'" font-size="8.5" text-anchor="middle">Sequential I/O yields maximum physical storage throughput</text>
+            </svg>
+          `
+        },
+        {
+          title: "Replicate (ISR)",
+          icon: "fa-shield-halved",
+          color: "var(--accent-green)",
+          description: "Kafka replicates messages across brokers to guarantee durability and high availability.",
+          bullets: [
+            "<strong>Leader Partition:</strong> For any partition, 1 broker is elected Leader. The Leader accepts all reads and writes from clients.",
+            "<strong>In-Sync Replicas (ISRs):</strong> Follower brokers pull events asynchronously from the Leader to keep updated. Followers in sync are flagged ISRs.",
+            "<strong>Durability acks=all:</strong> If configured, the Leader waits for all ISRs to write to their logs before acknowledging the Producer, ensuring zero data loss if a broker dies."
+          ],
+          renderVisual: () => `
+            <svg viewBox="0 0 400 280" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:100%;">
+              <!-- Leader Broker -->
+              <rect x="20" y="80" width="110" height="90" rx="8" fill="#0f172a" stroke="#34c759" stroke-width="2" />
+              <text x="75" y="105" fill="#34c759" font-family="'Outfit'" font-weight="700" font-size="10" text-anchor="middle">BROKER 1</text>
+              <text x="75" y="117" fill="#8b9bb4" font-family="'Inter'" font-size="8" text-anchor="middle">(LEADER)</text>
+              <rect x="40" y="130" width="70" height="20" rx="3" fill="rgba(52,199,89,0.1)" stroke="#34c759" stroke-width="0.5" />
+              <text x="75" y="143" fill="#fff" font-family="'Fira Code'" font-size="8" text-anchor="middle">Partition 0</text>
+
+              <!-- Follower Broker -->
+              <rect x="270" y="80" width="110" height="90" rx="8" fill="#0f172a" stroke="#00f2fe" stroke-width="1.5" />
+              <text x="325" y="105" fill="#00f2fe" font-family="'Outfit'" font-weight="700" font-size="10" text-anchor="middle">BROKER 2</text>
+              <text x="325" y="117" fill="#8b9bb4" font-family="'Inter'" font-size="8" text-anchor="middle">(FOLLOWER / ISR)</text>
+              <rect x="290" y="130" width="70" height="20" rx="3" fill="rgba(0,242,254,0.05)" stroke="#00f2fe" stroke-width="0.5" />
+              <text x="325" y="143" fill="#fff" font-family="'Fira Code'" font-size="8" text-anchor="middle">Partition 0</text>
+
+              <!-- Replication Line -->
+              <path d="M 130 125 L 270 125" fill="none" stroke="#00f2fe" stroke-width="2" class="flow-line-reverse" />
+              
+              <!-- Replication Packet Animation -->
+              <g>
+                <circle cx="0" cy="0" r="4" fill="#00f2fe">
+                  <animateMotion path="M 140 125 L 260 125" dur="1.5s" repeatCount="indefinite" />
+                </circle>
+              </g>
+
+              <text x="200" y="210" fill="#8b9bb4" font-family="'Inter'" font-size="9" text-anchor="middle">
+                Followers fetch logs actively from Leader
+              </text>
+              <text x="200" y="228" fill="#34c759" font-family="'Outfit'" font-weight="600" font-size="9" text-anchor="middle">
+                acks=all waits for all ISRs to write
+              </text>
+            </svg>
+          `
+        },
+        {
+          title: "Poll & Commit",
+          icon: "fa-people-group",
+          color: "var(--accent-purple)",
+          description: "Consumers process events at their own pace using a pull model, committing progress back to Kafka.",
+          bullets: [
+            "<strong>Pull Model (Backpressure):</strong> Consumers request messages in batches from specific partitions, preventing the consumer from being overwhelmed by spikes.",
+            "<strong>Consumer Groups:</strong> Multiple consumer instances share partition load. Each partition is assigned to exactly 1 consumer in a group.",
+            "<strong>__consumer_offsets:</strong> Consumers track progress by committing offsets back to an internal Kafka topic, allowing quick recovery if a consumer crashes."
+          ],
+          renderVisual: () => `
+            <svg viewBox="0 0 400 280" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:100%;">
+              <!-- Broker Partition -->
+              <rect x="20" y="90" width="100" height="70" rx="6" fill="#0f172a" stroke="rgba(255,255,255,0.08)" />
+              <text x="70" y="115" fill="#f0f4f9" font-family="'Outfit'" font-weight="700" font-size="10" text-anchor="middle">Partition 0</text>
+              <text x="70" y="135" fill="#8b9bb4" font-family="'Fira Code'" font-size="9" text-anchor="middle">Offset: 42</text>
+
+              <!-- Consumer -->
+              <rect x="260" y="90" width="120" height="70" rx="8" fill="url(#purpleGrad)" />
+              <text x="320" y="120" fill="#fff" font-family="'Outfit'" font-weight="700" font-size="11" text-anchor="middle">Consumer C1</text>
+              <text x="320" y="135" fill="#fff" font-family="'Inter'" font-size="8.5" text-anchor="middle">(Group: alert-group)</text>
+
+              <!-- Consumer Pull Line -->
+              <path d="M 120 120 L 260 120" fill="none" stroke="#ab47bc" stroke-width="2" class="flow-line" />
+              
+              <!-- Pulling animation packet -->
+              <g>
+                <circle cx="0" cy="0" r="4" fill="#ab47bc">
+                  <animateMotion path="M 125 120 L 255 120" dur="1.2s" repeatCount="indefinite" />
+                </circle>
+              </g>
+
+              <!-- Commit Line back to offsets topic -->
+              <path d="M 260 145 Q 190 200 120 160" fill="none" stroke="#ab47bc" stroke-width="1.5" stroke-dasharray="3,3" />
+              <text x="190" y="200" fill="#ab47bc" font-family="'Inter'" font-size="7.5" text-anchor="middle">Commit offset 42</text>
+
+              <text x="200" y="235" fill="#8b9bb4" font-family="'Inter'" font-size="9" text-anchor="middle">
+                Consumer polls partition N, handles batch, and commits offset
+              </text>
+            </svg>
+          `
+        }
+      ];
+
+      // Workflow Modal Controller Logic
+      let currentWorkflowStep = 0;
+      
+      const workflowModal = document.getElementById("workflowModal");
+      const workflowModalOverlay = document.getElementById("workflowModalOverlay");
+      const btnCloseWorkflowModal = document.getElementById("btnCloseWorkflowModal");
+      const kafkaClusterInteractive = document.getElementById("kafkaClusterInteractive");
+      
+      const workflowStepTabs = document.querySelectorAll(".workflow-step-tab");
+      const workflowStepDescription = document.getElementById("workflowStepDescription");
+      const workflowVisualContent = document.getElementById("workflowVisualContent");
+      const btnPrevWorkflowStep = document.getElementById("btnPrevWorkflowStep");
+      const btnNextWorkflowStep = document.getElementById("btnNextWorkflowStep");
+      const workflowStepIndicator = document.getElementById("workflowStepIndicator");
+
+      function openWorkflowModal() {
+        if (laserActive) {
+          toggleLaser(false);
+        }
+        workflowModal.classList.add("active");
+        workflowModalOverlay.classList.add("active");
+        goToWorkflowStep(0);
+      }
+
+      function closeWorkflowModal() {
+        workflowModal.classList.remove("active");
+        workflowModalOverlay.classList.remove("active");
+      }
+
+      function goToWorkflowStep(stepIndex) {
+        if (stepIndex < 0 || stepIndex >= workflowSteps.length) return;
+        currentWorkflowStep = stepIndex;
+
+        // Update tabs active state
+        workflowStepTabs.forEach((tab, idx) => {
+          tab.classList.toggle("active", idx === currentWorkflowStep);
+        });
+
+        // Update description details
+        const step = workflowSteps[currentWorkflowStep];
+        let bulletsHtml = "";
+        step.bullets.forEach(bullet => {
+          bulletsHtml += `<li>${bullet}</li>`;
+        });
+
+        workflowStepDescription.innerHTML = `
+          <h3>
+            <i class="fa-solid ${step.icon}" style="color: ${step.color};"></i>
+            <span style="background: var(--primary-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">${step.title}</span>
+          </h3>
+          <p>${step.description}</p>
+          <ul class="workflow-points-list">${bulletsHtml}</ul>
+        `;
+
+        // Update visual simulation
+        workflowVisualContent.innerHTML = step.renderVisual();
+
+        // Update controls disabled state
+        btnPrevWorkflowStep.disabled = currentWorkflowStep === 0;
+        btnNextWorkflowStep.disabled = currentWorkflowStep === workflowSteps.length - 1;
+
+        // Update step index indicators
+        workflowStepIndicator.textContent = `Step ${currentWorkflowStep + 1} of ${workflowSteps.length}`;
+      }
+
+      // Hook up event listeners
+      if (kafkaClusterInteractive) {
+        kafkaClusterInteractive.addEventListener("click", openWorkflowModal);
+      }
+
+      if (btnCloseWorkflowModal) {
+        btnCloseWorkflowModal.addEventListener("click", closeWorkflowModal);
+      }
+
+      if (workflowModalOverlay) {
+        workflowModalOverlay.addEventListener("click", closeWorkflowModal);
+      }
+
+      workflowStepTabs.forEach((tab) => {
+        tab.addEventListener("click", () => {
+          const step = parseInt(tab.getAttribute("data-step"));
+          goToWorkflowStep(step);
+        });
+      });
+
+      btnPrevWorkflowStep.addEventListener("click", () => {
+        if (currentWorkflowStep > 0) {
+          goToWorkflowStep(currentWorkflowStep - 1);
+        }
+      });
+
+      btnNextWorkflowStep.addEventListener("click", () => {
+        if (currentWorkflowStep < workflowSteps.length - 1) {
+          goToWorkflowStep(currentWorkflowStep + 1);
+        }
+      });
+
+      // Escape key to close workflow modal
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          closeWorkflowModal();
+        }
+      });
+
+      // Start the presentation
+      initDeck();
+    });
+  </script>
+</body>
+</html>
